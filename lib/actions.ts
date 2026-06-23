@@ -5,7 +5,7 @@ import { getPrisma } from "./prisma";
 import { requireBusinessAccess } from "./auth";
 import { writeAuditLog } from "./audit";
 import { notifyBooking } from "./email";
-import { uploadBusinessImage, deleteBusinessImage } from "./storage";
+import { createMediaRecord, deleteMediaRecord } from "./media";
 import type {
   BookingStatus,
   PropertyStatus,
@@ -84,60 +84,26 @@ export async function deleteProperty(id: string) {
 // ─── Images ───────────────────────────────────────────────────────────
 
 export async function uploadPropertyImage(formData: FormData) {
-  const access = await requireBusinessAccess({ allowedRoles: ["OWNER", "ADMIN", "STAFF"] });
-
   const propertyId = String(formData.get("propertyId") ?? "");
   const file = formData.get("file");
   if (!propertyId || !(file instanceof File) || file.size === 0) return;
 
-  if (access.isDemo) return;
-
-  // Verify the property belongs to this business before attaching media.
-  const property = await getPrisma().property.findFirst({
-    where: { id: propertyId, businessId: access.businessId },
-    select: { id: true },
-  });
-  if (!property) return;
-
-  const uploaded = await uploadBusinessImage({ businessId: access.businessId, file });
-  if (!uploaded) return;
-
-  await getPrisma().media.create({
-    data: {
-      businessId: access.businessId,
-      propertyId,
-      url: uploaded.url,
-      path: uploaded.path,
-      type: uploaded.type,
-      alt: String(formData.get("alt") ?? "") || null,
-    },
-  });
-
-  await writeAuditLog({
-    businessId: access.businessId,
-    userId: access.userId,
-    action: "media.uploaded",
-    entityType: "Media",
-    entityId: propertyId,
+  // Attach via the central media service: it verifies the property belongs to
+  // this business, compresses the image, stores it and writes the audit log.
+  await createMediaRecord({
+    file,
+    propertyId,
+    ownerType: "Property",
+    ownerId: propertyId,
+    folder: "properties",
+    alt: String(formData.get("alt") ?? "") || null,
+    allowedRoles: ["OWNER", "ADMIN", "STAFF"],
   });
   revalidatePath("/admin");
 }
 
 export async function deleteMedia(id: string) {
-  const access = await requireBusinessAccess({ allowedRoles: ["OWNER", "ADMIN"] });
-  if (access.isDemo) return;
-
-  // Resolve the storage path scoped by businessId, then remove the file + row.
-  const media = await getPrisma().media.findFirst({
-    where: { id, businessId: access.businessId },
-    select: { id: true, path: true },
-  });
-  if (!media) return;
-
-  await deleteBusinessImage(media.path);
-  await getPrisma().media.deleteMany({
-    where: { id, businessId: access.businessId },
-  });
+  await deleteMediaRecord(id);
   revalidatePath("/admin");
 }
 

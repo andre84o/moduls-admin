@@ -1,6 +1,7 @@
 import "server-only";
 import { getPrisma } from "./prisma";
 import { requireBusinessAccess } from "./auth";
+import { listMedia, type MediaItem } from "./media";
 import {
   demoProperties,
   demoBookings,
@@ -61,7 +62,10 @@ export async function getProperties(): Promise<AdminProperty[]> {
     price: p.price,
     bedrooms: p.bedrooms,
     status: p.status,
-    images: p.media.map((m) => ({ id: m.id, url: m.url, alt: m.alt })),
+    // Property images are website-facing (PUBLIC) so they always carry a url.
+    images: p.media
+      .filter((m) => m.url)
+      .map((m) => ({ id: m.id, url: m.url as string, alt: m.alt })),
   }));
 }
 
@@ -114,6 +118,11 @@ export async function getCustomers(): Promise<AdminCustomer[]> {
     stage: c.stage,
     joinedAt: c.createdAt.toISOString(),
   }));
+}
+
+/** All media for the active business — powers the central media library. */
+export async function getMedia(): Promise<MediaItem[]> {
+  return listMedia();
 }
 
 export async function getServices(): Promise<AdminService[]> {

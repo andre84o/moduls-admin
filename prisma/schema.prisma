@@ -138,20 +138,44 @@ model Property {
   @@map("properties")
 }
 
+/// Central media library. One shared store for every business-owned image and
+/// document. Files live in Supabase Storage under businesses/{businessId}/...
+/// and can be attached to ANY entity via the generic (ownerType, ownerId) pair
+/// — or to a Property directly via the typed propertyId relation. Images are
+/// compressed on upload (see lib/storage.ts); width/height/size describe the
+/// stored file.
 model Media {
-  id         String   @id @default(cuid())
+  id         String          @id @default(cuid())
   businessId String
   propertyId String?
-  url        String
+  // Generic attach target so any feature can link media without a schema change.
+  // ownerType is validated against a server-side whitelist and ownerId is always
+  // verified to belong to businessId before create/list (see lib/media.ts).
+  ownerType  String?
+  ownerId    String?
+  kind       MediaKind       @default(IMAGE)
+  // PUBLIC files live in the public bucket and store a permanent `url`.
+  // PRIVATE files (all documents + customer files) live in the private bucket;
+  // `url` is null and a short-lived signed URL is generated on read. Visibility
+  // is decided server-side, never trusted from the client.
+  visibility MediaVisibility @default(PRIVATE)
+  folder     String          @default("general")
+  name       String?
+  url        String?
   path       String
   type       String
+  size       Int?
+  width      Int?
+  height     Int?
   alt        String?
-  createdAt  DateTime @default(now())
+  createdAt  DateTime        @default(now())
 
   business Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
   property Property? @relation(fields: [propertyId], references: [id], onDelete: SetNull)
 
   @@index([businessId])
+  @@index([businessId, ownerType, ownerId])
+  @@index([businessId, kind])
   @@map("media")
 }
 
@@ -325,6 +349,16 @@ enum PropertyStatus {
   DRAFT
   PUBLISHED
   ARCHIVED
+}
+
+enum MediaKind {
+  IMAGE
+  DOCUMENT
+}
+
+enum MediaVisibility {
+  PUBLIC
+  PRIVATE
 }
 
 enum CustomerStage {
