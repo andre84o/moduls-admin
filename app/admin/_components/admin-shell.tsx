@@ -168,7 +168,9 @@ export function AdminShell({
 
       <main className="flex-1 overflow-y-auto">
         <div className="mx-auto max-w-5xl px-8 py-10">
-          {effectiveActive === "overview" && <OverviewSection stats={stats} />}
+          {effectiveActive === "overview" && (
+            <OverviewSection stats={stats} enabledModules={enabledModules} />
+          )}
           {effectiveActive === "properties" && (
             <PropertiesSection properties={properties} />
           )}
