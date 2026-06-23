@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createMediaRecord, deleteMediaRecord } from "./media";
+import { requireModule } from "./modules";
 
 /**
  * Server actions for the central media library. These are the form-facing
@@ -31,6 +32,12 @@ export async function uploadMedia(formData: FormData) {
   const propertyId = str(formData, "propertyId") || null;
   const revalidate = str(formData, "revalidate") || "/admin";
 
+  // Property-owned media requires the RENTAL module: resolve a RENTAL-gated
+  // access once and reuse it for every file. General library uploads stay core
+  // (access left undefined so createMediaRecord resolves its own CORE access).
+  const isPropertyAttach = Boolean(propertyId) || ownerType === "Property";
+  const access = isPropertyAttach ? await requireModule("RENTAL") : undefined;
+
   for (const file of files) {
     await createMediaRecord({
       file,
@@ -39,6 +46,7 @@ export async function uploadMedia(formData: FormData) {
       ownerType,
       ownerId,
       propertyId,
+      access,
     });
   }
 
