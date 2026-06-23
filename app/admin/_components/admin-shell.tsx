@@ -39,6 +39,13 @@ const sections = [
 
 type SectionId = (typeof sections)[number]["id"];
 
+// Sections that require an enabled module. Overview + Media are core (always shown).
+const SECTION_MODULE: Partial<Record<SectionId, string>> = {
+  properties: "RENTAL",
+  bookings: "BOOKING",
+  customers: "CRM",
+};
+
 export function AdminShell({
   stats,
   properties,
@@ -47,6 +54,7 @@ export function AdminShell({
   media,
   businesses,
   activeBusinessId,
+  enabledModules,
 }: {
   stats: DashboardStats;
   properties: AdminProperty[];
@@ -55,8 +63,18 @@ export function AdminShell({
   media: MediaItem[];
   businesses: BusinessOption[];
   activeBusinessId: string | null;
+  enabledModules: string[];
 }) {
   const [active, setActive] = useState<SectionId>("overview");
+
+  const visibleSections = sections.filter((s) => {
+    const mod = SECTION_MODULE[s.id];
+    return !mod || enabledModules.includes(mod);
+  });
+
+  const effectiveActive: SectionId = visibleSections.some((s) => s.id === active)
+    ? active
+    : "overview";
 
   return (
     <div className="flex min-h-screen bg-muted/30">
@@ -89,9 +107,9 @@ export function AdminShell({
         <Separator />
 
         <nav className="flex-1 space-y-1 p-3">
-          {sections.map((item) => {
+          {visibleSections.map((item) => {
             const Icon = item.icon;
-            const isActive = active === item.id;
+            const isActive = effectiveActive === item.id;
             return (
               <Button
                 key={item.id}
@@ -133,17 +151,17 @@ export function AdminShell({
 
       <main className="flex-1 overflow-y-auto">
         <div className="mx-auto max-w-5xl px-8 py-10">
-          {active === "overview" && <OverviewSection stats={stats} />}
-          {active === "properties" && (
+          {effectiveActive === "overview" && <OverviewSection stats={stats} />}
+          {effectiveActive === "properties" && (
             <PropertiesSection properties={properties} />
           )}
-          {active === "bookings" && (
+          {effectiveActive === "bookings" && (
             <BookingsSection bookings={bookings} properties={properties} />
           )}
-          {active === "customers" && (
+          {effectiveActive === "customers" && (
             <CustomersSection customers={customers} />
           )}
-          {active === "media" && <MediaSection media={media} />}
+          {effectiveActive === "media" && <MediaSection media={media} />}
         </div>
       </main>
     </div>
