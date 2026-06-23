@@ -1,0 +1,354 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { getPrisma } from "./prisma";
+import { requireBusinessAccess } from "./auth";
+import { writeAuditLog } from "./audit";
+import { notifyBooking } from "./email";
+import { uploadBusinessImage, deleteBusinessImage } from "./storage";
+import type {
+  BookingStatus,
+  CustomerStage,
+  PropertyStatus,
+} from "@/app/generated/prisma/enums";
+
+/**
+ * Mutating server actions for the admin. Every action resolves the SAFE
+ * businessId via requireBusinessAccess and scopes writes by it. Updates and
+ * deletes use updateMany/deleteMany with businessId so a row from another
+ * business can never be touched. No-ops in demo mode.
+ */
+
+// ─── Properties (bostäder) ────────────────────────────────────────────
+
+export async function createProperty(formData: FormData) {
+  const access = await requireBusinessAccess({ allowedRoles: ["OWNER", "ADMIN"] });
+
+  const title = String(formData.get("title") ?? "").trim();
+  const location = String(formData.get("location") ?? "").trim();
+  if (!title || !location) return;
+
+  const price = String(formData.get("price") ?? "");
+  const bedrooms = String(formData.get("bedrooms") ?? "");
+
+  if (access.isDemo) return;
+
+  const created = await getPrisma().property.create({
+    data: {
+      businessId: access.businessId,
+      title,
+      location,
+      price: price ? Number(price) : null,
+      bedrooms: bedrooms ? Number(bedrooms) : null,
+    },
+  });
+
+  await writeAuditLog({
+    businessId: access.businessId,
+    userId: access.userId,
+    action: "property.created",
+    entityType: "Property",
+    entityId: created.id,
+  });
+  revalidatePath("/admin");
+}
+
+export async function setPropertyStatus(id: string, status: PropertyStatus) {
+  const access = await requireBusinessAccess({ allowedRoles: ["OWNER", "ADMIN"] });
+  if (access.isDemo) return;
+
+  await getPrisma().property.updateMany({
+    where: { id, businessId: access.businessId },
+    data: { status },
+  });
+  revalidatePath("/admin");
+}
+
+export async function deleteProperty(id: string) {
+  const access = await requireBusinessAccess({ allowedRoles: ["OWNER", "ADMIN"] });
+  if (access.isDemo) return;
+
+  await getPrisma().property.deleteMany({
+    where: { id, businessId: access.businessId },
+  });
+
+  await writeAuditLog({
+    businessId: access.businessId,
+    userId: access.userId,
+    action: "property.deleted",
+    entityType: "Property",
+    entityId: id,
+  });
+  revalidatePath("/admin");
+}
+
+// ─── Images ───────────────────────────────────────────────────────────
+
+export async function uploadPropertyImage(formData: FormData) {
+  const access = await requireBusinessAccess({ allowedRoles: ["OWNER", "ADMIN", "STAFF"] });
+
+  const propertyId = String(formData.get("propertyId") ?? "");
+  const file = formData.get("file");
+  if (!propertyId || !(file instanceof File) || file.size === 0) return;
+
+  if (access.isDemo) return;
+
+  // Verify the property belongs to this business before attaching media.
+  const property = await getPrisma().property.findFirst({
+    where: { id: propertyId, businessId: access.businessId },
+    select: { id: true },
+  });
+  if (!property) return;
+
+  const uploaded = await uploadBusinessImage({ businessId: access.businessId, file });
+  if (!uploaded) return;
+
+  await getPrisma().media.create({
+    data: {
+      businessId: access.businessId,
+      propertyId,
+      url: uploaded.url,
+      path: uploaded.path,
+      type: uploaded.type,
+      alt: String(formData.get("alt") ?? "") || null,
+    },
+  });
+
+  await writeAuditLog({
+    businessId: access.businessId,
+    userId: access.userId,
+    action: "media.uploaded",
+    entityType: "Media",
+    entityId: propertyId,
+  });
+  revalidatePath("/admin");
+}
+
+export async function deleteMedia(id: string) {
+  const access = await requireBusinessAccess({ allowedRoles: ["OWNER", "ADMIN"] });
+  if (access.isDemo) return;
+
+  // Resolve the storage path scoped by businessId, then remove the file + row.
+  const media = await getPrisma().media.findFirst({
+    where: { id, businessId: access.businessId },
+    select: { id: true, path: true },
+  });
+  if (!media) return;
+
+  await deleteBusinessImage(media.path);
+  await getPrisma().media.deleteMany({
+    where: { id, businessId: access.businessId },
+  });
+  revalidatePath("/admin");
+}
+
+// ─── CRM ──────────────────────────────────────────────────────────────
+
+export async function createCustomer(formData: FormData) {
+  const access = await requireBusinessAccess();
+
+  const name = String(formData.get("name") ?? "").trim();
+  if (!name) return;
+  const email = String(formData.get("email") ?? "").trim() || null;
+  const phone = String(formData.get("phone") ?? "").trim() || null;
+
+  if (access.isDemo) return;
+
+  const created = await getPrisma().customer.create({
+    data: { businessId: access.businessId, name, email, phone },
+  });
+
+  await writeAuditLog({
+    businessId: access.businessId,
+    userId: access.userId,
+    action: "customer.created",
+    entityType: "Customer",
+    entityId: created.id,
+  });
+  revalidatePath("/admin");
+}
+
+export async function setCustomerStage(id: string, stage: CustomerStage) {
+  const access = await requireBusinessAccess();
+  if (access.isDemo) return;
+
+  await getPrisma().customer.updateMany({
+    where: { id, businessId: access.businessId },
+    data: { stage },
+  });
+  revalidatePath("/admin");
+}
+
+export async function addCrmNote(formData: FormData) {
+  const access = await requireBusinessAccess();
+
+  const customerId = String(formData.get("customerId") ?? "");
+  const body = String(formData.get("body") ?? "").trim();
+  if (!customerId || !body) return;
+
+  if (access.isDemo) return;
+
+  // Verify the customer belongs to this business before attaching a note.
+  const customer = await getPrisma().customer.findFirst({
+    where: { id: customerId, businessId: access.businessId },
+    select: { id: true },
+  });
+  if (!customer) return;
+
+  await getPrisma().crmNote.create({
+    data: {
+      businessId: access.businessId,
+      customerId,
+      userId: access.userId,
+      body,
+    },
+  });
+  revalidatePath("/admin");
+}
+
+export async function deleteCustomer(id: string) {
+  const access = await requireBusinessAccess({ allowedRoles: ["OWNER", "ADMIN"] });
+  if (access.isDemo) return;
+
+  await getPrisma().customer.deleteMany({
+    where: { id, businessId: access.businessId },
+  });
+  revalidatePath("/admin");
+}
+
+// ─── Bookings + calendar ──────────────────────────────────────────────
+
+export async function createBooking(formData: FormData) {
+  const access = await requireBusinessAccess();
+
+  const guestName = String(formData.get("guestName") ?? "").trim();
+  const guestEmail = String(formData.get("guestEmail") ?? "").trim() || null;
+  const propertyId = String(formData.get("propertyId") ?? "") || null;
+  const startRaw = String(formData.get("startAt") ?? "");
+  const endRaw = String(formData.get("endAt") ?? "");
+  const notes = String(formData.get("notes") ?? "").trim() || null;
+
+  if (!guestName || !startRaw || !endRaw) return;
+
+  const startAt = new Date(startRaw);
+  const endAt = new Date(endRaw);
+  if (Number.isNaN(startAt.getTime()) || Number.isNaN(endAt.getTime())) return;
+  if (endAt <= startAt) return; // validate range server-side
+
+  if (access.isDemo) return;
+
+  const prisma = getPrisma();
+
+  // If a property is given, verify it belongs to this business.
+  let propertyTitle: string | null = null;
+  if (propertyId) {
+    const property = await prisma.property.findFirst({
+      where: { id: propertyId, businessId: access.businessId },
+      select: { title: true },
+    });
+    if (!property) return;
+    propertyTitle = property.title;
+
+    // Prevent double booking for the same property (server-side conflict check).
+    const conflict = await prisma.booking.findFirst({
+      where: {
+        businessId: access.businessId,
+        propertyId,
+        status: { notIn: ["CANCELLED", "DECLINED"] },
+        startAt: { lt: endAt },
+        endAt: { gt: startAt },
+      },
+      select: { id: true },
+    });
+    if (conflict) {
+      return { error: "Those dates overlap an existing booking." };
+    }
+  }
+
+  const created = await prisma.booking.create({
+    data: {
+      businessId: access.businessId,
+      propertyId,
+      guestName,
+      guestEmail,
+      startAt,
+      endAt,
+      notes,
+    },
+  });
+
+  // Notify the customer and the business admin.
+  const business = await prisma.business.findUnique({
+    where: { id: access.businessId },
+    select: { name: true, email: true },
+  });
+  await notifyBooking({
+    businessId: access.businessId,
+    businessName: business?.name ?? "Admin",
+    adminEmail: business?.email ?? process.env.ADMIN_EMAIL ?? null,
+    guestName,
+    guestEmail,
+    what: propertyTitle ?? "Booking",
+    when: `${startAt.toLocaleString()} – ${endAt.toLocaleString()}`,
+  });
+
+  await writeAuditLog({
+    businessId: access.businessId,
+    userId: access.userId,
+    action: "booking.created",
+    entityType: "Booking",
+    entityId: created.id,
+  });
+  revalidatePath("/admin");
+}
+
+export async function setBookingStatus(id: string, status: BookingStatus) {
+  const access = await requireBusinessAccess();
+  if (access.isDemo) return;
+
+  await getPrisma().booking.updateMany({
+    where: { id, businessId: access.businessId },
+    data: { status },
+  });
+
+  await writeAuditLog({
+    businessId: access.businessId,
+    userId: access.userId,
+    action: "booking.status_changed",
+    entityType: "Booking",
+    entityId: id,
+    metadata: { status },
+  });
+  revalidatePath("/admin");
+}
+
+export async function deleteBooking(id: string) {
+  const access = await requireBusinessAccess({ allowedRoles: ["OWNER", "ADMIN"] });
+  if (access.isDemo) return;
+
+  await getPrisma().booking.deleteMany({
+    where: { id, businessId: access.businessId },
+  });
+  revalidatePath("/admin");
+}
+
+export async function addBlockedTime(formData: FormData) {
+  const access = await requireBusinessAccess({ allowedRoles: ["OWNER", "ADMIN"] });
+
+  const startRaw = String(formData.get("startAt") ?? "");
+  const endRaw = String(formData.get("endAt") ?? "");
+  const reason = String(formData.get("reason") ?? "").trim() || null;
+  if (!startRaw || !endRaw) return;
+
+  const startAt = new Date(startRaw);
+  const endAt = new Date(endRaw);
+  if (Number.isNaN(startAt.getTime()) || Number.isNaN(endAt.getTime())) return;
+  if (endAt <= startAt) return;
+
+  if (access.isDemo) return;
+
+  await getPrisma().blockedTime.create({
+    data: { businessId: access.businessId, startAt, endAt, reason },
+  });
+  revalidatePath("/admin");
+}

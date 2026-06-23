@@ -1,0 +1,342 @@
+// Prisma schema — shared multi-tenant Supabase (PostgreSQL) database.
+// One database holds MANY businesses. Every business-owned table has businessId.
+// Connection: prisma.config.ts (CLI) and lib/prisma.ts (runtime driver adapter).
+// Architecture rules: see CLAUDE.md (tenant isolation is mandatory).
+
+generator client {
+  provider = "prisma-client"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Core / platform models ───────────────────────────────────────────
+
+/// A client company. The tenant root — everything hangs off this.
+model Business {
+  id        String         @id @default(cuid())
+  name      String
+  slug      String         @unique
+  status    BusinessStatus @default(ACTIVE)
+  logoUrl   String?
+  website   String?
+  phone     String?
+  email     String?
+  address   String?
+  settings  Json?
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  members      BusinessMember[]
+  projects     Project[]
+  properties   Property[]
+  customers    Customer[]
+  crmNotes     CrmNote[]
+  services     Service[]
+  bookings     Booking[]
+  availability Availability[]
+  blockedTimes BlockedTime[]
+  media        Media[]
+  auditLogs    AuditLog[]
+  notifications Notification[]
+
+  @@map("businesses")
+}
+
+/// A login user. Authentication is handled by Supabase Auth; we only mirror the
+/// Supabase user id here. Passwords NEVER live in Prisma.
+model User {
+  id         String           @id @default(cuid())
+  supabaseId String           @unique
+  email      String           @unique
+  username   String?
+  firstName  String?
+  lastName   String?
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+
+  memberships BusinessMember[]
+  crmNotes    CrmNote[]
+  auditLogs   AuditLog[]
+
+  @@map("users")
+}
+
+/// Connects a user to a business with a role. Access control lives here, never
+/// as a single global role on User.
+model BusinessMember {
+  id         String     @id @default(cuid())
+  businessId String
+  userId     String
+  role       MemberRole @default(STAFF)
+  createdAt  DateTime   @default(now())
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([businessId, userId])
+  @@index([userId])
+  @@map("business_members")
+}
+
+/// A module/system enabled for a business (CRM, BOOKING, WEBSITE, ...).
+model Project {
+  id         String        @id @default(cuid())
+  businessId String
+  name       String
+  type       ProjectType
+  status     ProjectStatus @default(ACTIVE)
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([businessId])
+  @@map("projects")
+}
+
+/// Important admin actions, scoped per business.
+model AuditLog {
+  id         String   @id @default(cuid())
+  businessId String
+  userId     String?
+  action     String
+  entityType String
+  entityId   String?
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  user     User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([businessId])
+  @@map("audit_logs")
+}
+
+// ─── Bostäder (properties) + media ────────────────────────────────────
+
+model Property {
+  id          String         @id @default(cuid())
+  businessId  String
+  title       String
+  slug        String?
+  description String?
+  location    String
+  price       Int?
+  bedrooms    Int?
+  status      PropertyStatus @default(PUBLISHED)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  business Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  bookings Booking[]
+  media    Media[]
+
+  @@index([businessId])
+  @@map("properties")
+}
+
+model Media {
+  id         String   @id @default(cuid())
+  businessId String
+  propertyId String?
+  url        String
+  path       String
+  type       String
+  alt        String?
+  createdAt  DateTime @default(now())
+
+  business Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  property Property? @relation(fields: [propertyId], references: [id], onDelete: SetNull)
+
+  @@index([businessId])
+  @@map("media")
+}
+
+// ─── CRM ──────────────────────────────────────────────────────────────
+
+model Customer {
+  id         String        @id @default(cuid())
+  businessId String
+  name       String
+  email      String?
+  phone      String?
+  stage      CustomerStage @default(LEAD)
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+
+  business Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  notes    CrmNote[]
+  bookings Booking[]
+
+  @@index([businessId])
+  @@map("customers")
+}
+
+model CrmNote {
+  id         String   @id @default(cuid())
+  businessId String
+  customerId String
+  userId     String?
+  body       String
+  createdAt  DateTime @default(now())
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  user     User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([businessId])
+  @@index([customerId])
+  @@map("crm_notes")
+}
+
+// ─── Booking + calendar ───────────────────────────────────────────────
+
+model Service {
+  id          String   @id @default(cuid())
+  businessId  String
+  name        String
+  durationMin Int      @default(60)
+  price       Int?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  business Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  bookings Booking[]
+
+  @@index([businessId])
+  @@map("services")
+}
+
+model Booking {
+  id         String        @id @default(cuid())
+  businessId String
+  propertyId String?
+  serviceId  String?
+  customerId String?
+  guestName  String
+  guestEmail String?
+  startAt    DateTime
+  endAt      DateTime
+  status     BookingStatus @default(PENDING)
+  notes      String?
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+
+  business Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  property Property? @relation(fields: [propertyId], references: [id], onDelete: SetNull)
+  service  Service?  @relation(fields: [serviceId], references: [id], onDelete: SetNull)
+  customer Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+
+  @@index([businessId])
+  @@index([businessId, startAt])
+  @@map("bookings")
+}
+
+/// Recurring weekly working hours for the calendar. weekday: 0=Sun..6=Sat.
+model Availability {
+  id          String   @id @default(cuid())
+  businessId  String
+  weekday     Int
+  startMinute Int
+  endMinute   Int
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([businessId])
+  @@map("availability")
+}
+
+/// One-off blocked range (holiday, maintenance) — removes slots from calendar.
+model BlockedTime {
+  id         String   @id @default(cuid())
+  businessId String
+  startAt    DateTime
+  endAt      DateTime
+  reason     String?
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([businessId])
+  @@map("blocked_times")
+}
+
+// ─── Mail notifications log ───────────────────────────────────────────
+
+/// Record of every email we attempted to send (to customer or admin).
+model Notification {
+  id         String             @id @default(cuid())
+  businessId String
+  channel    String             @default("email")
+  recipient  String
+  audience   NotificationAudience
+  subject    String
+  status     NotificationStatus @default(SENT)
+  error      String?
+  createdAt  DateTime           @default(now())
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([businessId])
+  @@map("notifications")
+}
+
+// ─── Enums ────────────────────────────────────────────────────────────
+
+enum BusinessStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+enum MemberRole {
+  SUPER_ADMIN
+  OWNER
+  ADMIN
+  STAFF
+}
+
+enum ProjectType {
+  CRM
+  BOOKING
+  WEBSITE
+  RENTAL
+  ECOMMERCE
+  CUSTOM
+}
+
+enum ProjectStatus {
+  ACTIVE
+  DISABLED
+}
+
+enum PropertyStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum CustomerStage {
+  LEAD
+  CONTACTED
+  CUSTOMER
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  DECLINED
+  CANCELLED
+}
+
+enum NotificationAudience {
+  CUSTOMER
+  ADMIN
+}
+
+enum NotificationStatus {
+  SENT
+  FAILED
+  SKIPPED
+}
