@@ -234,7 +234,20 @@ export default function Home() {
           <span className="text-lg font-semibold tracking-tight text-zinc-900">
             Costa<span className="text-amber-500">Stay</span>
           </span>
-          <p>© {2026} CostaStay. Semesterboenden i Spanien.</p>
+          <div className="text-center">
+            <p>© {2026} CostaStay. Semesterboenden i Spanien.</p>
+            <p className="mt-1">
+              Design &amp; development by{" "}
+              <a
+                href="https://intenzze.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-medium text-zinc-700 transition hover:text-zinc-900"
+              >
+                Intenzze
+              </a>
+            </p>
+          </div>
           <div className="flex gap-6">
             <a href="#" className="transition hover:text-zinc-900">
               Villkor
