@@ -14,6 +14,13 @@ import {
 } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { logout, switchBusiness } from "@/lib/auth-actions";
 import type {
@@ -95,18 +102,24 @@ export function AdminShell({
 
         {businesses.length > 0 && (
           <div className="px-3 pb-2">
-            <select
+            <Select
+              items={businesses.map((b) => ({ label: b.name, value: b.id }))}
               value={activeBusinessId ?? businesses[0]?.id}
-              onChange={(e) => switchBusiness(e.target.value)}
-              className="w-full rounded-md border bg-background px-2 py-1.5 text-sm"
-              aria-label="Active business"
+              onValueChange={(value) => {
+                if (value) switchBusiness(value);
+              }}
             >
-              {businesses.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.name}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger className="w-full" aria-label="Active business">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {businesses.map((b) => (
+                  <SelectItem key={b.id} value={b.id}>
+                    {b.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         )}
         <Separator />
