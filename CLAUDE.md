@@ -2,6 +2,43 @@
 
 hämta componenter från https://ui.shadcn.com
 
+## Project base / SaaS template rule
+
+This project should be treated as a reusable SaaS base for future small-business projects, not as a one-off client project.
+
+Core functionality should stay generic and reusable:
+
+* Auth
+* Business
+* BusinessMember
+* Users
+* Roles
+* Admin shell
+* Media library
+* Audit logs
+* Settings
+* Storage setup
+* Tenant isolation
+
+Do not hardcode client-specific names, routes, business logic, demo data, or UI text into the core system.
+
+All business-owned data must always be scoped by `businessId`.
+
+Never read, update, delete, list, or attach business-owned data by `id` alone.
+
+Always resolve `businessId` on the server from the logged-in user and their `BusinessMember` access.
+
+Optional features such as booking, CRM, rentals, services, staff, invoices, and website pages should be treated as modules that can be enabled per business.
+
+Before adding a new feature, decide whether it belongs to:
+
+1. Core SaaS foundation
+2. Optional module
+3. Client-specific customization
+
+Do not mix these layers.
+
+
 # Shared Supabase + Prisma Architecture Rules
 
 This project uses the shared Supabase database for multiple small client projects.
