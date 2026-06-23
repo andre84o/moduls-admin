@@ -2,6 +2,7 @@ import "server-only";
 import { getPrisma } from "./prisma";
 import { requireBusinessAccess } from "./auth";
 import { listMedia, type MediaItem } from "./media";
+import { getEnabledModules, isModuleEnabled } from "./modules";
 import {
   demoProperties,
   demoBookings,
@@ -35,11 +36,16 @@ export async function getDashboardStats(): Promise<DashboardStats> {
 
   const prisma = getPrisma();
   const where = { businessId: access.businessId };
+  // Resolve enabled modules once so disabled-module data never leaks into the overview.
+  const modules = await getEnabledModules(access);
   const [properties, bookings, customers, pendingBookings] = await Promise.all([
-    prisma.property.count({ where }),
-    prisma.booking.count({ where }),
-    prisma.customer.count({ where }),
-    prisma.booking.count({ where: { ...where, status: "PENDING" } }),
+    // Counts are zeroed out when the owning module is disabled for this business.
+    modules.has("RENTAL") ? prisma.property.count({ where }) : Promise.resolve(0),
+    modules.has("BOOKING") ? prisma.booking.count({ where }) : Promise.resolve(0),
+    modules.has("CRM") ? prisma.customer.count({ where }) : Promise.resolve(0),
+    modules.has("BOOKING")
+      ? prisma.booking.count({ where: { ...where, status: "PENDING" } })
+      : Promise.resolve(0),
   ]);
 
   return { properties, bookings, customers, pendingBookings };
@@ -48,6 +54,8 @@ export async function getDashboardStats(): Promise<DashboardStats> {
 export async function getProperties(): Promise<AdminProperty[]> {
   const access = await requireBusinessAccess();
   if (access.isDemo) return demoProperties;
+  // RENTAL module gate: return empty when the module is disabled for this business.
+  if (!(await isModuleEnabled("RENTAL", access))) return [];
 
   const rows = await getPrisma().property.findMany({
     where: { businessId: access.businessId },
@@ -72,6 +80,8 @@ export async function getProperties(): Promise<AdminProperty[]> {
 export async function getBookings(): Promise<AdminBooking[]> {
   const access = await requireBusinessAccess();
   if (access.isDemo) return demoBookings;
+  // BOOKING module gate: return empty when the module is disabled for this business.
+  if (!(await isModuleEnabled("BOOKING", access))) return [];
 
   const rows = await getPrisma().booking.findMany({
     where: { businessId: access.businessId },
@@ -95,6 +105,8 @@ export async function getBookings(): Promise<AdminBooking[]> {
 export async function getCustomers(): Promise<AdminCustomer[]> {
   const access = await requireBusinessAccess();
   if (access.isDemo) return demoCustomers;
+  // CRM module gate: return empty when the module is disabled for this business.
+  if (!(await isModuleEnabled("CRM", access))) return [];
 
   const rows = await getPrisma().customer.findMany({
     where: { businessId: access.businessId },

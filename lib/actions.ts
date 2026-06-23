@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { getPrisma } from "./prisma";
-import { requireBusinessAccess } from "./auth";
+import { requireModule } from "./modules";
 import { writeAuditLog } from "./audit";
 import { notifyBooking } from "./email";
 import { createMediaRecord, deleteMediaRecord } from "./media";
@@ -12,16 +12,18 @@ import type {
 } from "@/app/generated/prisma/enums";
 
 /**
- * Mutating server actions for the admin. Every action resolves the SAFE
- * businessId via requireBusinessAccess and scopes writes by it. Updates and
- * deletes use updateMany/deleteMany with businessId so a row from another
- * business can never be touched. No-ops in demo mode.
+ * Mutating server actions for the admin. Module-owned actions resolve the SAFE
+ * businessId via requireModule (which wraps requireBusinessAccess, preserving
+ * the role + tenant checks, and additionally blocks when the owning module is
+ * disabled for the business): properties -> RENTAL, bookings/calendar -> BOOKING,
+ * customers -> CRM. Updates and deletes use updateMany/deleteMany with businessId
+ * so a row from another business can never be touched. No-ops in demo mode.
  */
 
 // ─── Properties (bostäder) ────────────────────────────────────────────
 
 export async function createProperty(formData: FormData) {
-  const access = await requireBusinessAccess({ allowedRoles: ["OWNER", "ADMIN"] });
+  const access = await requireModule("RENTAL", { allowedRoles: ["OWNER", "ADMIN"] });
 
   const title = String(formData.get("title") ?? "").trim();
   const location = String(formData.get("location") ?? "").trim();
@@ -53,7 +55,7 @@ export async function createProperty(formData: FormData) {
 }
 
 export async function setPropertyStatus(id: string, status: PropertyStatus) {
-  const access = await requireBusinessAccess({ allowedRoles: ["OWNER", "ADMIN"] });
+  const access = await requireModule("RENTAL", { allowedRoles: ["OWNER", "ADMIN"] });
   if (access.isDemo) return;
 
   await getPrisma().property.updateMany({
@@ -64,7 +66,7 @@ export async function setPropertyStatus(id: string, status: PropertyStatus) {
 }
 
 export async function deleteProperty(id: string) {
-  const access = await requireBusinessAccess({ allowedRoles: ["OWNER", "ADMIN"] });
+  const access = await requireModule("RENTAL", { allowedRoles: ["OWNER", "ADMIN"] });
   if (access.isDemo) return;
 
   await getPrisma().property.deleteMany({
@@ -88,6 +90,8 @@ export async function uploadPropertyImage(formData: FormData) {
   const file = formData.get("file");
   if (!propertyId || !(file instanceof File) || file.size === 0) return;
 
+  const access = await requireModule("RENTAL", { allowedRoles: ["OWNER", "ADMIN", "STAFF"] });
+
   // Attach via the central media service: it verifies the property belongs to
   // this business, compresses the image, stores it and writes the audit log.
   await createMediaRecord({
@@ -97,12 +101,13 @@ export async function uploadPropertyImage(formData: FormData) {
     ownerId: propertyId,
     folder: "properties",
     alt: String(formData.get("alt") ?? "") || null,
-    allowedRoles: ["OWNER", "ADMIN", "STAFF"],
+    access,
   });
   revalidatePath("/admin");
 }
 
 export async function deleteMedia(id: string) {
+  await requireModule("RENTAL", { allowedRoles: ["OWNER", "ADMIN"] });
   await deleteMediaRecord(id);
   revalidatePath("/admin");
 }
@@ -115,7 +120,7 @@ export async function deleteMedia(id: string) {
  * updateMany scoped by businessId so another business's row can't be touched.
  */
 export async function upsertCustomer(formData: FormData) {
-  const access = await requireBusinessAccess();
+  const access = await requireModule("CRM");
 
   const id = String(formData.get("id") ?? "").trim() || null;
   const firstName = String(formData.get("firstName") ?? "").trim() || null;
@@ -189,7 +194,7 @@ export async function upsertCustomer(formData: FormData) {
 
 /** Save the freeform admin note for a customer (separate from contact details). */
 export async function updateCustomerNote(formData: FormData) {
-  const access = await requireBusinessAccess();
+  const access = await requireModule("CRM");
 
   const id = String(formData.get("id") ?? "").trim();
   if (!id) return;
@@ -205,7 +210,7 @@ export async function updateCustomerNote(formData: FormData) {
 }
 
 export async function deleteCustomer(id: string) {
-  const access = await requireBusinessAccess({ allowedRoles: ["OWNER", "ADMIN"] });
+  const access = await requireModule("CRM", { allowedRoles: ["OWNER", "ADMIN"] });
   if (access.isDemo) return;
 
   await getPrisma().customer.deleteMany({
@@ -217,7 +222,7 @@ export async function deleteCustomer(id: string) {
 // ─── Bookings + calendar ──────────────────────────────────────────────
 
 export async function createBooking(formData: FormData) {
-  const access = await requireBusinessAccess();
+  const access = await requireModule("BOOKING");
 
   const guestName = String(formData.get("guestName") ?? "").trim();
   const guestEmail = String(formData.get("guestEmail") ?? "").trim() || null;
@@ -301,7 +306,7 @@ export async function createBooking(formData: FormData) {
 }
 
 export async function setBookingStatus(id: string, status: BookingStatus) {
-  const access = await requireBusinessAccess();
+  const access = await requireModule("BOOKING");
   if (access.isDemo) return;
 
   await getPrisma().booking.updateMany({
@@ -321,7 +326,7 @@ export async function setBookingStatus(id: string, status: BookingStatus) {
 }
 
 export async function deleteBooking(id: string) {
-  const access = await requireBusinessAccess({ allowedRoles: ["OWNER", "ADMIN"] });
+  const access = await requireModule("BOOKING", { allowedRoles: ["OWNER", "ADMIN"] });
   if (access.isDemo) return;
 
   await getPrisma().booking.deleteMany({
@@ -331,7 +336,7 @@ export async function deleteBooking(id: string) {
 }
 
 export async function addBlockedTime(formData: FormData) {
-  const access = await requireBusinessAccess({ allowedRoles: ["OWNER", "ADMIN"] });
+  const access = await requireModule("BOOKING", { allowedRoles: ["OWNER", "ADMIN"] });
 
   const startRaw = String(formData.get("startAt") ?? "");
   const endRaw = String(formData.get("endAt") ?? "");
