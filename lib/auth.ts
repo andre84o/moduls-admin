@@ -209,3 +209,26 @@ export async function requireBusinessAccess(opts?: {
 
   return { businessId, userId: user.id, role: membership.role, isDemo: false };
 }
+
+/**
+ * Platform-level guard. Only a SUPER_ADMIN BusinessMember may pass — this is
+ * the boundary for cross-business / platform admin tools (see CLAUDE.md).
+ * Demo mode allows (DEMO_USER is a synthetic SUPER_ADMIN). Blocks clearly:
+ * redirect("/login") when unauthenticated, redirect("/admin") when authenticated
+ * but not a platform admin.
+ */
+export async function requireSuperAdmin(): Promise<CurrentUser> {
+  if (demoMode()) return DEMO_USER;
+
+  const user = await getCurrentUser();
+  if (!user) redirect("/login");
+
+  // SUPER_ADMIN on ANY business grants platform-level access.
+  const sa = await getPrisma().businessMember.findFirst({
+    where: { userId: user.id, role: "SUPER_ADMIN" },
+    select: { id: true },
+  });
+  if (!sa) redirect("/admin");
+
+  return user;
+}
