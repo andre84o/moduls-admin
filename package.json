@@ -12,7 +12,9 @@
     "db:migrate": "prisma migrate dev",
     "db:push": "prisma db push",
     "db:seed": "prisma db seed",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "storage:ensure": "tsx scripts/ensure-storage-buckets.ts",
+    "test:tenant-isolation": "tsx scripts/test-media-tenant-isolation.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",

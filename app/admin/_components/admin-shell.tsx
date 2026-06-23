@@ -7,6 +7,7 @@ import {
   Home,
   CalendarDays,
   Users,
+  Images,
   ArrowLeft,
   LogOut,
 } from "lucide-react";
@@ -21,16 +22,19 @@ import type {
   DashboardStats,
   BusinessOption,
 } from "../types";
+import type { MediaItem } from "@/lib/media";
 import { OverviewSection } from "./sections/overview";
 import { PropertiesSection } from "./sections/properties";
 import { BookingsSection } from "./sections/bookings";
 import { CustomersSection } from "./sections/customers";
+import { MediaSection } from "./sections/media";
 
 const sections = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
   { id: "properties", label: "Properties", icon: Home },
   { id: "bookings", label: "Bookings", icon: CalendarDays },
   { id: "customers", label: "CRM", icon: Users },
+  { id: "media", label: "Media", icon: Images },
 ] as const;
 
 type SectionId = (typeof sections)[number]["id"];
@@ -40,6 +44,7 @@ export function AdminShell({
   properties,
   bookings,
   customers,
+  media,
   businesses,
   activeBusinessId,
 }: {
@@ -47,6 +52,7 @@ export function AdminShell({
   properties: AdminProperty[];
   bookings: AdminBooking[];
   customers: AdminCustomer[];
+  media: MediaItem[];
   businesses: BusinessOption[];
   activeBusinessId: string | null;
 }) {
@@ -137,6 +143,7 @@ export function AdminShell({
           {active === "customers" && (
             <CustomersSection customers={customers} />
           )}
+          {active === "media" && <MediaSection media={media} />}
         </div>
       </main>
     </div>
