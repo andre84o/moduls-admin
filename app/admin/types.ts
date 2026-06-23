@@ -37,20 +37,18 @@ export type AdminBooking = {
 export type AdminCustomer = {
   id: string;
   name: string;
+  firstName: string | null;
+  lastName: string | null;
   email: string | null;
   phone: string | null;
+  mobile: string | null;
+  address: string | null;
+  postalCode: string | null;
+  country: string | null;
+  gender: string | null;
+  note: string | null;
   stage: CustomerStage;
-  notesCount: number;
-};
-
-export type CrmNoteItem = {
-  id: string;
-  body: string;
-  createdAt: string;
-};
-
-export type AdminCustomerDetail = AdminCustomer & {
-  notes: CrmNoteItem[];
+  joinedAt: string;
 };
 
 export type AdminService = {

@@ -5,7 +5,6 @@ import {
   demoProperties,
   demoBookings,
   demoCustomers,
-  demoCustomerDetails,
   demoServices,
   demoCalendar,
 } from "./demo-data";
@@ -13,7 +12,6 @@ import type {
   AdminProperty,
   AdminBooking,
   AdminCustomer,
-  AdminCustomerDetail,
   AdminService,
   CalendarEvent,
   DashboardStats,
@@ -99,48 +97,24 @@ export async function getCustomers(): Promise<AdminCustomer[]> {
   const rows = await getPrisma().customer.findMany({
     where: { businessId: access.businessId },
     orderBy: { createdAt: "desc" },
-    include: { _count: { select: { notes: true } } },
   });
 
   return rows.map((c) => ({
     id: c.id,
     name: c.name,
+    firstName: c.firstName,
+    lastName: c.lastName,
     email: c.email,
     phone: c.phone,
+    mobile: c.mobile,
+    address: c.address,
+    postalCode: c.postalCode,
+    country: c.country,
+    gender: c.gender,
+    note: c.note,
     stage: c.stage,
-    notesCount: c._count.notes,
+    joinedAt: c.createdAt.toISOString(),
   }));
-}
-
-export async function getCustomerDetail(
-  customerId: string,
-): Promise<AdminCustomerDetail | null> {
-  const access = await requireBusinessAccess();
-  if (access.isDemo) return demoCustomerDetails[customerId] ?? null;
-
-  // Scoped by businessId — never load another business's customer.
-  const c = await getPrisma().customer.findFirst({
-    where: { id: customerId, businessId: access.businessId },
-    include: {
-      notes: { orderBy: { createdAt: "desc" } },
-      _count: { select: { notes: true } },
-    },
-  });
-  if (!c) return null;
-
-  return {
-    id: c.id,
-    name: c.name,
-    email: c.email,
-    phone: c.phone,
-    stage: c.stage,
-    notesCount: c._count.notes,
-    notes: c.notes.map((n) => ({
-      id: n.id,
-      body: n.body,
-      createdAt: n.createdAt.toISOString(),
-    })),
-  };
 }
 
 export async function getServices(): Promise<AdminService[]> {

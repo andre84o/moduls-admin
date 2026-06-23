@@ -161,8 +161,16 @@ model Customer {
   id         String        @id @default(cuid())
   businessId String
   name       String
+  firstName  String?
+  lastName   String?
   email      String?
   phone      String?
+  mobile     String?
+  address    String?
+  postalCode String?
+  country    String?
+  gender     String?
+  note       String?       @db.Text
   stage      CustomerStage @default(LEAD)
   createdAt  DateTime      @default(now())
   updatedAt  DateTime      @updatedAt

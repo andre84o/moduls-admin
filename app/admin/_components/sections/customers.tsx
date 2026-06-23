@@ -1,156 +1,120 @@
 "use client";
 
-import { useRef, useTransition } from "react";
-import { ArrowRight, Trash2 } from "lucide-react";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { useState } from "react";
+import { UserPlus } from "lucide-react";
+import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
-  createCustomer,
-  setCustomerStage,
-  deleteCustomer,
-} from "@/lib/actions";
-import type { AdminCustomer, CustomerStage } from "../../types";
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { CustomerDialog } from "./customer-dialog";
+import type { AdminCustomer } from "../../types";
 
-const stages: { id: CustomerStage; label: string; next?: CustomerStage }[] = [
-  { id: "LEAD", label: "Leads", next: "CONTACTED" },
-  { id: "CONTACTED", label: "Contacted", next: "CUSTOMER" },
-  { id: "CUSTOMER", label: "Customers" },
-];
+function fullName(c: AdminCustomer): string {
+  return [c.firstName, c.lastName].filter(Boolean).join(" ") || c.name;
+}
 
-export function CustomersSection({
-  customers,
-}: {
-  customers: AdminCustomer[];
-}) {
-  const formRef = useRef<HTMLFormElement>(null);
-  const [isPending, startTransition] = useTransition();
+function initials(c: AdminCustomer): string {
+  const parts = [c.firstName, c.lastName].filter(Boolean) as string[];
+  const source = parts.length ? parts : c.name.split(/\s+/);
+  return source
+    .slice(0, 2)
+    .map((p) => p[0]?.toUpperCase() ?? "")
+    .join("");
+}
 
-  async function handleCreate(formData: FormData) {
-    await createCustomer(formData);
-    formRef.current?.reset();
-  }
+function formatJoined(iso: string): string {
+  return new Date(iso).toLocaleDateString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+export function CustomersSection({ customers }: { customers: AdminCustomer[] }) {
+  // `selected` opens an existing customer; `creating` opens an empty one.
+  const [selected, setSelected] = useState<AdminCustomer | null>(null);
+  const [creating, setCreating] = useState(false);
+
+  const dialogOpen = selected !== null || creating;
 
   return (
     <div>
-      <header className="mb-8">
-        <h1 className="text-2xl font-semibold tracking-tight">CRM</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Manage leads and customer relationships through the pipeline.
-        </p>
+      <header className="mb-8 flex items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">CRM</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Manage your customers and their details.
+          </p>
+        </div>
+        <Button size="sm" onClick={() => setCreating(true)}>
+          <UserPlus />
+          Add customer
+        </Button>
       </header>
 
-      <Card className="mb-8">
-        <CardHeader>
-          <CardTitle>New customer</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form
-            ref={formRef}
-            action={handleCreate}
-            className="grid gap-4 sm:grid-cols-3"
-          >
-            <div>
-              <Label htmlFor="name">Name</Label>
-              <Input id="name" name="name" required className="mt-1.5" />
-            </div>
-            <div>
-              <Label htmlFor="email">Email</Label>
-              <Input id="email" name="email" type="email" className="mt-1.5" />
-            </div>
-            <div>
-              <Label htmlFor="phone">Phone</Label>
-              <Input id="phone" name="phone" className="mt-1.5" />
-            </div>
-            <div className="sm:col-span-3">
-              <Button type="submit" disabled={isPending}>
-                {isPending ? "Saving…" : "Add customer"}
-              </Button>
-            </div>
-          </form>
-        </CardContent>
+      <Card className="overflow-hidden p-0">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="text-xs">Customer</TableHead>
+              <TableHead className="text-xs">Email</TableHead>
+              <TableHead className="text-xs">Joined</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {customers.length === 0 ? (
+              <TableRow>
+                <TableCell
+                  colSpan={3}
+                  className="py-10 text-center text-sm text-muted-foreground"
+                >
+                  No customers yet.
+                </TableCell>
+              </TableRow>
+            ) : (
+              customers.map((c) => (
+                <TableRow
+                  key={c.id}
+                  className="cursor-pointer"
+                  onClick={() => setSelected(c)}
+                >
+                  <TableCell>
+                    <div className="flex items-center gap-3">
+                      <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-teal-600 to-slate-800 text-xs font-semibold text-white">
+                        {initials(c)}
+                      </span>
+                      <span className="text-sm font-medium">{fullName(c)}</span>
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-sm text-muted-foreground">
+                    {c.email ?? "—"}
+                  </TableCell>
+                  <TableCell className="text-sm text-muted-foreground">
+                    {formatJoined(c.joinedAt)}
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
       </Card>
 
-      <div className="grid gap-4 lg:grid-cols-3">
-        {stages.map((stage) => {
-          const items = customers.filter((c) => c.stage === stage.id);
-          return (
-            <Card key={stage.id} className="bg-muted/30">
-              <CardHeader>
-                <CardTitle className="flex items-center justify-between text-sm">
-                  {stage.label}
-                  <span className="text-xs font-normal text-muted-foreground">
-                    {items.length}
-                  </span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                {items.length === 0 ? (
-                  <p className="rounded-lg border border-dashed py-4 text-center text-xs text-muted-foreground">
-                    Empty
-                  </p>
-                ) : (
-                  items.map((c) => (
-                    <div
-                      key={c.id}
-                      className="rounded-lg border bg-card p-3 shadow-sm"
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <p className="text-sm font-medium">{c.name}</p>
-                          {c.email && (
-                            <p className="text-xs text-muted-foreground">
-                              {c.email}
-                            </p>
-                          )}
-                          {c.phone && (
-                            <p className="text-xs text-muted-foreground">
-                              {c.phone}
-                            </p>
-                          )}
-                        </div>
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          aria-label="Delete"
-                          disabled={isPending}
-                          onClick={() =>
-                            startTransition(() => deleteCustomer(c.id))
-                          }
-                        >
-                          <Trash2 className="size-3.5 text-destructive" />
-                        </Button>
-                      </div>
-                      {stage.next && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="mt-1.5 -ml-2.5 text-amber-600 hover:text-amber-700"
-                          disabled={isPending}
-                          onClick={() =>
-                            startTransition(() =>
-                              setCustomerStage(c.id, stage.next!),
-                            )
-                          }
-                        >
-                          Move forward
-                          <ArrowRight className="size-3.5" />
-                        </Button>
-                      )}
-                    </div>
-                  ))
-                )}
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
+      <CustomerDialog
+        customer={selected}
+        open={dialogOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSelected(null);
+            setCreating(false);
+          }
+        }}
+      />
     </div>
   );
 }

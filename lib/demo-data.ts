@@ -6,7 +6,6 @@ import type {
   AdminProperty,
   AdminBooking,
   AdminCustomer,
-  AdminCustomerDetail,
   AdminService,
   CalendarEvent,
 } from "@/app/admin/types";
@@ -49,19 +48,55 @@ export const demoProperties: AdminProperty[] = [
 ];
 
 export const demoCustomers: AdminCustomer[] = [
-  { id: "demo-c1", name: "Anna Lind", email: "anna@example.com", phone: "+46 70 111 22 33", stage: "CUSTOMER", notesCount: 1 },
-  { id: "demo-c2", name: "Marco Rossi", email: "marco@example.com", phone: null, stage: "CONTACTED", notesCount: 0 },
-  { id: "demo-c3", name: "Sofia Berg", email: "sofia@example.com", phone: null, stage: "LEAD", notesCount: 0 },
-];
-
-export const demoCustomerDetails: Record<string, AdminCustomerDetail> = {
-  "demo-c1": {
-    ...demoCustomers[0],
-    notes: [
-      { id: "demo-n1", body: "Returning guest — prefers Casa del Sol.", createdAt: at(-10, 9).toISOString() },
-    ],
+  {
+    id: "demo-c1",
+    name: "Anna Lind",
+    firstName: "Anna",
+    lastName: "Lind",
+    email: "anna@example.com",
+    phone: "+46 70 111 22 33",
+    mobile: "+46 70 111 22 33",
+    address: "Storgatan 1",
+    postalCode: "111 22",
+    country: "Sweden",
+    gender: "Female",
+    note: "Returning guest — prefers Casa del Sol.",
+    stage: "CUSTOMER",
+    joinedAt: at(-40, 9).toISOString(),
   },
-};
+  {
+    id: "demo-c2",
+    name: "Marco Rossi",
+    firstName: "Marco",
+    lastName: "Rossi",
+    email: "marco@example.com",
+    phone: null,
+    mobile: null,
+    address: null,
+    postalCode: null,
+    country: "Italy",
+    gender: "Male",
+    note: null,
+    stage: "CONTACTED",
+    joinedAt: at(-20, 9).toISOString(),
+  },
+  {
+    id: "demo-c3",
+    name: "Sofia Berg",
+    firstName: "Sofia",
+    lastName: "Berg",
+    email: "sofia@example.com",
+    phone: null,
+    mobile: null,
+    address: null,
+    postalCode: null,
+    country: null,
+    gender: null,
+    note: null,
+    stage: "LEAD",
+    joinedAt: at(-5, 9).toISOString(),
+  },
+];
 
 export const demoServices: AdminService[] = [
   { id: "demo-s1", name: "Cleaning", durationMin: 120, price: 60 },

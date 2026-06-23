@@ -31,9 +31,11 @@ export default function proxy(req: NextRequest) {
     return NextResponse.redirect(new URL("/login", req.nextUrl));
   }
 
-  if (pathname === "/login" && signedIn) {
-    return NextResponse.redirect(new URL("/admin", req.nextUrl));
-  }
+  // NOTE: We deliberately do NOT redirect /login -> /admin here. Proxy only
+  // sees whether an auth cookie *exists*, not whether it's valid. A stale or
+  // invalid cookie would bounce /login -> /admin -> (getUser() fails) -> /login
+  // forever (ERR_TOO_MANY_REDIRECTS). The real, validated "already signed in?"
+  // check lives server-side in app/login/page.tsx via getCurrentUser().
 
   return NextResponse.next();
 }

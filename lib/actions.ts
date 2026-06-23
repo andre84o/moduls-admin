@@ -8,7 +8,6 @@ import { notifyBooking } from "./email";
 import { uploadBusinessImage, deleteBusinessImage } from "./storage";
 import type {
   BookingStatus,
-  CustomerStage,
   PropertyStatus,
 } from "@/app/generated/prisma/enums";
 
@@ -144,64 +143,84 @@ export async function deleteMedia(id: string) {
 
 // ─── CRM ──────────────────────────────────────────────────────────────
 
-export async function createCustomer(formData: FormData) {
+/**
+ * Create a new customer or update an existing one's contact details.
+ * The freeform note is saved separately via updateCustomerNote(). Updates use
+ * updateMany scoped by businessId so another business's row can't be touched.
+ */
+export async function upsertCustomer(formData: FormData) {
   const access = await requireBusinessAccess();
 
-  const name = String(formData.get("name") ?? "").trim();
-  if (!name) return;
+  const id = String(formData.get("id") ?? "").trim() || null;
+  const firstName = String(formData.get("firstName") ?? "").trim() || null;
+  const lastName = String(formData.get("lastName") ?? "").trim() || null;
   const email = String(formData.get("email") ?? "").trim() || null;
   const phone = String(formData.get("phone") ?? "").trim() || null;
+  const mobile = String(formData.get("mobile") ?? "").trim() || null;
+  const address = String(formData.get("address") ?? "").trim() || null;
+  const postalCode = String(formData.get("postalCode") ?? "").trim() || null;
+  const country = String(formData.get("country") ?? "").trim() || null;
+  const gender = String(formData.get("gender") ?? "").trim() || null;
+
+  // `name` is the canonical display name used elsewhere (e.g. bookings).
+  const name = [firstName, lastName].filter(Boolean).join(" ").trim();
+  if (!name) return; // a customer needs at least a first or last name
+
+  const fields = {
+    firstName,
+    lastName,
+    email,
+    phone,
+    mobile,
+    address,
+    postalCode,
+    country,
+    gender,
+  };
 
   if (access.isDemo) return;
 
-  const created = await getPrisma().customer.create({
-    data: { businessId: access.businessId, name, email, phone },
-  });
+  if (id) {
+    await getPrisma().customer.updateMany({
+      where: { id, businessId: access.businessId },
+      data: { name, ...fields },
+    });
+    await writeAuditLog({
+      businessId: access.businessId,
+      userId: access.userId,
+      action: "customer.updated",
+      entityType: "Customer",
+      entityId: id,
+    });
+  } else {
+    const created = await getPrisma().customer.create({
+      data: { businessId: access.businessId, name, ...fields },
+    });
+    await writeAuditLog({
+      businessId: access.businessId,
+      userId: access.userId,
+      action: "customer.created",
+      entityType: "Customer",
+      entityId: created.id,
+    });
+  }
 
-  await writeAuditLog({
-    businessId: access.businessId,
-    userId: access.userId,
-    action: "customer.created",
-    entityType: "Customer",
-    entityId: created.id,
-  });
   revalidatePath("/admin");
 }
 
-export async function setCustomerStage(id: string, stage: CustomerStage) {
+/** Save the freeform admin note for a customer (separate from contact details). */
+export async function updateCustomerNote(formData: FormData) {
   const access = await requireBusinessAccess();
+
+  const id = String(formData.get("id") ?? "").trim();
+  if (!id) return;
+  const note = String(formData.get("note") ?? "").trim() || null;
+
   if (access.isDemo) return;
 
   await getPrisma().customer.updateMany({
     where: { id, businessId: access.businessId },
-    data: { stage },
-  });
-  revalidatePath("/admin");
-}
-
-export async function addCrmNote(formData: FormData) {
-  const access = await requireBusinessAccess();
-
-  const customerId = String(formData.get("customerId") ?? "");
-  const body = String(formData.get("body") ?? "").trim();
-  if (!customerId || !body) return;
-
-  if (access.isDemo) return;
-
-  // Verify the customer belongs to this business before attaching a note.
-  const customer = await getPrisma().customer.findFirst({
-    where: { id: customerId, businessId: access.businessId },
-    select: { id: true },
-  });
-  if (!customer) return;
-
-  await getPrisma().crmNote.create({
-    data: {
-      businessId: access.businessId,
-      customerId,
-      userId: access.userId,
-      body,
-    },
+    data: { note },
   });
   revalidatePath("/admin");
 }
