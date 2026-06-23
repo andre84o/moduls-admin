@@ -193,8 +193,21 @@ export async function upsertCustomer(formData: FormData) {
       entityId: id,
     });
   } else {
-    const created = await getPrisma().customer.create({
-      data: { businessId: access.businessId, name, ...fields },
+    // Assign the next per-business customer number atomically. The unique
+    // constraint on (businessId, number) is the final guard against races.
+    const created = await getPrisma().$transaction(async (tx) => {
+      const max = await tx.customer.aggregate({
+        where: { businessId: access.businessId },
+        _max: { number: true },
+      });
+      return tx.customer.create({
+        data: {
+          businessId: access.businessId,
+          number: (max._max.number ?? 0) + 1,
+          name,
+          ...fields,
+        },
+      });
     });
     await writeAuditLog({
       businessId: access.businessId,

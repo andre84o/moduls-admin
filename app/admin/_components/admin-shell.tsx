@@ -6,7 +6,6 @@ import {
   LayoutDashboard,
   Home,
   CalendarDays,
-  CalendarRange,
   Users,
   ArrowLeft,
   LogOut,
@@ -19,21 +18,18 @@ import type {
   AdminProperty,
   AdminBooking,
   AdminCustomer,
-  CalendarEvent,
   DashboardStats,
   BusinessOption,
 } from "../types";
 import { OverviewSection } from "./sections/overview";
 import { PropertiesSection } from "./sections/properties";
 import { BookingsSection } from "./sections/bookings";
-import { CalendarSection } from "./sections/calendar";
 import { CustomersSection } from "./sections/customers";
 
 const sections = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
   { id: "properties", label: "Properties", icon: Home },
   { id: "bookings", label: "Bookings", icon: CalendarDays },
-  { id: "calendar", label: "Calendar", icon: CalendarRange },
   { id: "customers", label: "CRM", icon: Users },
 ] as const;
 
@@ -44,7 +40,6 @@ export function AdminShell({
   properties,
   bookings,
   customers,
-  calendar,
   businesses,
   activeBusinessId,
 }: {
@@ -52,7 +47,6 @@ export function AdminShell({
   properties: AdminProperty[];
   bookings: AdminBooking[];
   customers: AdminCustomer[];
-  calendar: CalendarEvent[];
   businesses: BusinessOption[];
   activeBusinessId: string | null;
 }) {
@@ -140,7 +134,6 @@ export function AdminShell({
           {active === "bookings" && (
             <BookingsSection bookings={bookings} properties={properties} />
           )}
-          {active === "calendar" && <CalendarSection events={calendar} />}
           {active === "customers" && (
             <CustomersSection customers={customers} />
           )}

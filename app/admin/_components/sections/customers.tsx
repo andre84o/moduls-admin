@@ -62,6 +62,7 @@ export function CustomersSection({ customers }: { customers: AdminCustomer[] }) 
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-16 text-xs">No.</TableHead>
               <TableHead className="text-xs">Customer</TableHead>
               <TableHead className="text-xs">Email</TableHead>
               <TableHead className="text-xs">Joined</TableHead>
@@ -71,7 +72,7 @@ export function CustomersSection({ customers }: { customers: AdminCustomer[] }) 
             {customers.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={3}
+                  colSpan={4}
                   className="py-10 text-center text-sm text-muted-foreground"
                 >
                   No customers yet.
@@ -84,6 +85,9 @@ export function CustomersSection({ customers }: { customers: AdminCustomer[] }) 
                   className="cursor-pointer"
                   onClick={() => setSelected(c)}
                 >
+                  <TableCell className="text-sm font-medium tabular-nums text-muted-foreground">
+                    {c.number != null ? `#${c.number}` : "—"}
+                  </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-3">
                       <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-teal-600 to-slate-800 text-xs font-semibold text-white">

@@ -160,6 +160,7 @@ model Media {
 model Customer {
   id         String        @id @default(cuid())
   businessId String
+  number     Int?
   name       String
   firstName  String?
   lastName   String?
@@ -179,6 +180,7 @@ model Customer {
   notes    CrmNote[]
   bookings Booking[]
 
+  @@unique([businessId, number])
   @@index([businessId])
   @@map("customers")
 }

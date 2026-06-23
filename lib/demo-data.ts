@@ -7,7 +7,6 @@ import type {
   AdminBooking,
   AdminCustomer,
   AdminService,
-  CalendarEvent,
 } from "@/app/admin/types";
 
 function at(dayOffset: number, hour: number): Date {
@@ -50,6 +49,7 @@ export const demoProperties: AdminProperty[] = [
 export const demoCustomers: AdminCustomer[] = [
   {
     id: "demo-c1",
+    number: 1,
     name: "Anna Lind",
     firstName: "Anna",
     lastName: "Lind",
@@ -66,6 +66,7 @@ export const demoCustomers: AdminCustomer[] = [
   },
   {
     id: "demo-c2",
+    number: 2,
     name: "Marco Rossi",
     firstName: "Marco",
     lastName: "Rossi",
@@ -82,6 +83,7 @@ export const demoCustomers: AdminCustomer[] = [
   },
   {
     id: "demo-c3",
+    number: 3,
     name: "Sofia Berg",
     firstName: "Sofia",
     lastName: "Berg",
@@ -125,23 +127,5 @@ export const demoBookings: AdminBooking[] = [
     propertyTitle: "Villa Azul",
     customerName: "Marco Rossi",
     notes: "Asked about a late checkout.",
-  },
-];
-
-export const demoCalendar: CalendarEvent[] = [
-  ...demoBookings.map((b) => ({
-    id: b.id,
-    kind: "booking" as const,
-    title: `${b.propertyTitle ?? "Booking"} — ${b.guestName}`,
-    startAt: b.startAt,
-    endAt: b.endAt,
-    status: b.status,
-  })),
-  {
-    id: "demo-blk1",
-    kind: "blocked" as const,
-    title: "Maintenance",
-    startAt: at(7, 8).toISOString(),
-    endAt: at(7, 17).toISOString(),
   },
 ];

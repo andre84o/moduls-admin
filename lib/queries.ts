@@ -6,14 +6,12 @@ import {
   demoBookings,
   demoCustomers,
   demoServices,
-  demoCalendar,
 } from "./demo-data";
 import type {
   AdminProperty,
   AdminBooking,
   AdminCustomer,
   AdminService,
-  CalendarEvent,
   DashboardStats,
 } from "@/app/admin/types";
 
@@ -101,6 +99,7 @@ export async function getCustomers(): Promise<AdminCustomer[]> {
 
   return rows.map((c) => ({
     id: c.id,
+    number: c.number,
     name: c.name,
     firstName: c.firstName,
     lastName: c.lastName,
@@ -132,52 +131,4 @@ export async function getServices(): Promise<AdminService[]> {
     durationMin: s.durationMin,
     price: s.price,
   }));
-}
-
-export async function getCalendarEvents(
-  rangeStart: Date,
-  rangeEnd: Date,
-): Promise<CalendarEvent[]> {
-  const access = await requireBusinessAccess();
-  if (access.isDemo) return demoCalendar;
-
-  const prisma = getPrisma();
-  const businessId = access.businessId;
-
-  const [bookings, blocked] = await Promise.all([
-    prisma.booking.findMany({
-      where: {
-        businessId,
-        startAt: { lte: rangeEnd },
-        endAt: { gte: rangeStart },
-        status: { not: "CANCELLED" },
-      },
-      include: { property: true },
-    }),
-    prisma.blockedTime.findMany({
-      where: {
-        businessId,
-        startAt: { lte: rangeEnd },
-        endAt: { gte: rangeStart },
-      },
-    }),
-  ]);
-
-  return [
-    ...bookings.map((b) => ({
-      id: b.id,
-      kind: "booking" as const,
-      title: `${b.property?.title ?? "Booking"} — ${b.guestName}`,
-      startAt: b.startAt.toISOString(),
-      endAt: b.endAt.toISOString(),
-      status: b.status,
-    })),
-    ...blocked.map((t) => ({
-      id: t.id,
-      kind: "blocked" as const,
-      title: t.reason ?? "Blocked",
-      startAt: t.startAt.toISOString(),
-      endAt: t.endAt.toISOString(),
-    })),
-  ];
 }

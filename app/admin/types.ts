@@ -36,6 +36,7 @@ export type AdminBooking = {
 
 export type AdminCustomer = {
   id: string;
+  number: number | null;
   name: string;
   firstName: string | null;
   lastName: string | null;
@@ -56,15 +57,6 @@ export type AdminService = {
   name: string;
   durationMin: number;
   price: number | null;
-};
-
-export type CalendarEvent = {
-  id: string;
-  kind: "booking" | "blocked";
-  title: string;
-  startAt: string;
-  endAt: string;
-  status?: BookingStatus;
 };
 
 export type DashboardStats = {
