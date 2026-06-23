@@ -3,7 +3,6 @@ import {
   getProperties,
   getBookings,
   getCustomers,
-  getMedia,
 } from "@/lib/queries";
 import { listUserBusinesses, getActiveBusinessId } from "@/lib/auth";
 import { getEnabledModules } from "@/lib/modules";
@@ -16,7 +15,6 @@ export default async function AdminPage() {
     properties,
     bookings,
     customers,
-    media,
     businesses,
     activeId,
     enabledModules,
@@ -25,7 +23,6 @@ export default async function AdminPage() {
     getProperties(),
     getBookings(),
     getCustomers(),
-    getMedia(),
     listUserBusinesses(),
     getActiveBusinessId(),
     getEnabledModules(),
@@ -37,7 +34,6 @@ export default async function AdminPage() {
       properties={properties}
       bookings={bookings}
       customers={customers}
-      media={media}
       businesses={businesses.map((b) => ({ id: b.id, name: b.name, role: b.role }))}
       activeBusinessId={activeId}
       enabledModules={Array.from(enabledModules)}

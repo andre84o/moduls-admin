@@ -7,7 +7,6 @@ import {
   Home,
   CalendarDays,
   Users,
-  Images,
   Settings,
   ArrowLeft,
   LogOut,
@@ -30,24 +29,21 @@ import type {
   DashboardStats,
   BusinessOption,
 } from "../types";
-import type { MediaItem } from "@/lib/media";
 import { OverviewSection } from "./sections/overview";
 import { PropertiesSection } from "./sections/properties";
 import { BookingsSection } from "./sections/bookings";
 import { CustomersSection } from "./sections/customers";
-import { MediaSection } from "./sections/media";
 
 const sections = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
   { id: "properties", label: "Properties", icon: Home },
   { id: "bookings", label: "Bookings", icon: CalendarDays },
   { id: "customers", label: "CRM", icon: Users },
-  { id: "media", label: "Media", icon: Images },
 ] as const;
 
 type SectionId = (typeof sections)[number]["id"];
 
-// Sections that require an enabled module. Overview + Media are core (always shown).
+// Sections that require an enabled module. Overview is core (always shown).
 const SECTION_MODULE: Partial<Record<SectionId, string>> = {
   properties: "RENTAL",
   bookings: "BOOKING",
@@ -59,7 +55,6 @@ export function AdminShell({
   properties,
   bookings,
   customers,
-  media,
   businesses,
   activeBusinessId,
   enabledModules,
@@ -68,7 +63,6 @@ export function AdminShell({
   properties: AdminProperty[];
   bookings: AdminBooking[];
   customers: AdminCustomer[];
-  media: MediaItem[];
   businesses: BusinessOption[];
   activeBusinessId: string | null;
   enabledModules: string[];
@@ -193,7 +187,6 @@ export function AdminShell({
           {effectiveActive === "customers" && (
             <CustomersSection customers={customers} />
           )}
-          {effectiveActive === "media" && <MediaSection media={media} />}
         </div>
       </main>
     </div>
