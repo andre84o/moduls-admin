@@ -100,7 +100,7 @@ export function AdminShell({
           </p>
         </div>
 
-        {businesses.length > 0 && (
+        {businesses.length > 1 && (
           <div className="px-3 pb-2">
             <Select
               items={businesses.map((b) => ({ label: b.name, value: b.id }))}
