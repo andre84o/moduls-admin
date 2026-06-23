@@ -807,3 +807,7 @@ Before creating a new file, Claude must check:
   * Put it in `public/`.
 
 Do not create files in the root unless the file is a standard project config file.
+
+
+## Footer
+Design & development by Intenzze ska inte tas bort i footer

@@ -78,7 +78,20 @@ export default function Home() {
           <span className="text-lg font-semibold tracking-tight text-zinc-900">
             Moduls<span className="text-indigo-600">Admin</span>
           </span>
-          <p>© 2026 Moduls</p>
+          <div className="text-center">
+            <p>© 2026 Moduls</p>
+            <p className="mt-1">
+              Design &amp; development by{" "}
+              <a
+                href="https://intenzze.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-medium text-zinc-700 transition hover:text-zinc-900"
+              >
+                Intenzze
+              </a>
+            </p>
+          </div>
         </div>
       </footer>
     </div>
