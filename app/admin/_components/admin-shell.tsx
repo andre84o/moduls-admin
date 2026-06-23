@@ -8,6 +8,7 @@ import {
   CalendarDays,
   Users,
   Images,
+  Settings,
   ArrowLeft,
   LogOut,
 } from "lucide-react";
@@ -76,6 +77,10 @@ export function AdminShell({
     ? active
     : "overview";
 
+  // SUPER_ADMIN on any business grants access to platform tools. Cosmetic only —
+  // the page + actions are guarded server-side by requireSuperAdmin.
+  const isSuperAdmin = businesses.some((b) => b.role === "SUPER_ADMIN");
+
   return (
     <div className="flex min-h-screen bg-muted/30">
       <aside className="flex w-60 flex-col border-r bg-sidebar text-sidebar-foreground">
@@ -126,6 +131,18 @@ export function AdminShell({
 
         <Separator />
         <div className="space-y-1 p-3">
+          {isSuperAdmin && (
+            <Link
+              href="/admin/super/modules"
+              className={cn(
+                buttonVariants({ variant: "ghost" }),
+                "w-full justify-start gap-3",
+              )}
+            >
+              <Settings className="size-4" />
+              Module Settings
+            </Link>
+          )}
           <Link
             href="/"
             className={cn(
