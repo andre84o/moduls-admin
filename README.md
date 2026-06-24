@@ -1,38 +1,102 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# moduls-admin
 
-## Getting Started
+Reusable multi-tenant SaaS admin base (Next.js App Router + Supabase + Prisma).
+One shared database holds many businesses; every business-owned row is scoped by
+`businessId`. Optional features (RENTAL, BOOKING, CRM, …) are modules enabled
+per business. See `CLAUDE.md` / `AGENTS.md` for the full architecture rules.
 
-First, run the development server:
+## Getting started
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+cp .env.example .env      # fill in values (see below)
+npx prisma generate
+npx prisma migrate deploy # or: npx prisma db push
+npm run dev               # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+**Demo mode:** if `DATABASE_URL` is not configured the app runs in demo mode —
+fully browsable with seeded data and a synthetic `SUPER_ADMIN`, no DB needed.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Environment variables
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Copy `.env.example` → `.env`. Never commit real secrets.
 
-## Learn More
+| Variable | Used for |
+| --- | --- |
+| `DATABASE_URL` | Postgres (Prisma, pooled). Unset → demo mode. |
+| `DIRECT_URL` | Postgres direct connection (migrations). |
+| `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL (browser-safe). |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon key — Auth (browser-safe). |
+| `SUPABASE_SERVICE_ROLE_KEY` | Server-only. Trusted Storage ops. **Never expose.** |
+| `SUPABASE_PUBLIC_BUCKET` | Public bucket (website images/logos). Default `media-public`. |
+| `SUPABASE_PRIVATE_BUCKET` | Private bucket (documents/customer files). Default `media-private`. |
+| `RESEND_API_KEY` | Email via Resend. Unset → sends skipped (logged). |
+| `EMAIL_FROM` | From address for outbound email. |
+| `ADMIN_EMAIL` | Fallback admin recipient when a business has no email. |
 
-To learn more about Next.js, take a look at the following resources:
+## Tenant isolation (rule of thumb)
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- `businessId` is always resolved **server-side** from the session via
+  `requireBusinessAccess()` — never trusted from the client.
+- Reads/updates/deletes of business data are always scoped by `businessId`
+  (`updateMany`/`deleteMany` with `{ id, businessId }`, never `id` alone).
+- Module-owned routes/actions add `requireModule(type)` on top; platform tools
+  use `requireSuperAdmin()`. Cross-business access is `SUPER_ADMIN`-only.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Media upload flow
 
-## Deploy on Vercel
+Central, reusable media library. Images are compressed server-side; documents
+stored as-is. Every file is scoped to the current business and gets a `Media`
+DB row. Two Supabase Storage buckets back it:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- **PUBLIC** — website images/logos, served via a permanent URL.
+- **PRIVATE** — documents + customer files, served via short-lived signed URLs.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
-# modal-admin
-# moduls-admin
+Storage path: `businesses/{businessId}/images|documents/{filename}`.
+
+**Components** (`components/`)
+- `MediaUpload/` — client dropzone. Auto-submits on file pick. Props:
+  `ownerType`, `ownerId`, `propertyId`, `folder`, `accept`, `multiple`,
+  `revalidate`, `label`. Example:
+  ```tsx
+  <MediaUpload propertyId={p.id} accept="image/*" />
+  <MediaUpload folder="logos" ownerType="Business" ownerId={businessId} />
+  ```
+- `MediaLibrary/` — client grid/list of media with delete.
+- `app/admin/_components/sections/media.tsx` — admin section combining both
+  (kept for reuse; not mounted in the admin nav).
+
+**Server actions** (`lib/media-actions.ts`, form-facing)
+- `uploadMedia(formData)` — used by `MediaUpload`. Property-owned attach
+  (`propertyId` / `ownerType="Property"`) requires the `RENTAL` module; general
+  library uploads are core.
+- `deleteMediaItem(id, revalidate)` — used by `MediaLibrary`.
+
+**Service** (`lib/media.ts`, server-only — the access-checked core)
+- `createMediaRecord({ file, folder, alt, ownerType, ownerId, propertyId })` —
+  resolves `businessId`, verifies the attach target belongs to the business
+  (whitelist: `Property`, `Customer`, `Project`, `Business`), compresses + stores,
+  writes the `Media` row + audit log.
+- `listMedia(filter)` / `getMediaFor(ownerType, ownerId)` — list scoped media
+  (private files returned with signed URLs).
+- `deleteMediaRecord(id)` — delete file + row, scoped by `businessId`.
+- `exportBusinessMedia()` / `purgeBusinessMedia()` — `OWNER` / `SUPER_ADMIN`.
+
+**Storage** (`lib/storage.ts`) — Supabase Storage via service-role client:
+upload (sharp → WebP), signed URLs, delete, per-business listing/erasure.
+
+**Flow:** `MediaUpload` → `uploadMedia` (action) → `createMediaRecord` (tenant +
+owner checks) → `uploadBusinessFile` (compress + store) → `Media` row + audit.
+Display via `listMedia` (signed URLs for private); delete via `deleteMediaItem`.
+
+> Upload size limit is set in `next.config.ts` (`serverActions.bodySizeLimit`).
+
+## Scripts
+
+```bash
+npm run dev      # dev server
+npm run build    # production build
+npm run start    # serve the build
+npx tsc --noEmit # type-check
+```
