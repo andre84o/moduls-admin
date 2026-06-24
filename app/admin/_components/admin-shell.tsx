@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
   LayoutDashboard,
@@ -8,6 +8,7 @@ import {
   CalendarDays,
   Users,
   Settings,
+  Menu,
   ArrowLeft,
   LogOut,
 } from "lucide-react";
@@ -69,6 +70,30 @@ export function AdminShell({
 }) {
   const [active, setActive] = useState<SectionId>("overview");
 
+  // Sidebar has two states: fully open or fully closed. Toggled from the header.
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const sidebarRef = useRef<HTMLElement>(null);
+  const headerRef = useRef<HTMLElement>(null);
+
+  // While open, a click anywhere outside the sidebar (and outside the header,
+  // so the toggle button keeps working) closes it.
+  useEffect(() => {
+    if (!sidebarOpen) return;
+    function onPointerDown(event: MouseEvent) {
+      const target = event.target as Node;
+      if (
+        sidebarRef.current &&
+        !sidebarRef.current.contains(target) &&
+        headerRef.current &&
+        !headerRef.current.contains(target)
+      ) {
+        setSidebarOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", onPointerDown);
+    return () => document.removeEventListener("mousedown", onPointerDown);
+  }, [sidebarOpen]);
+
   const visibleSections = sections.filter((s) => {
     const mod = SECTION_MODULE[s.id];
     return !mod || enabledModules.includes(mod);
@@ -83,112 +108,129 @@ export function AdminShell({
   const isSuperAdmin = businesses.some((b) => b.role === "SUPER_ADMIN");
 
   return (
-    <div className="flex min-h-screen bg-muted/30">
-      <aside className="flex w-60 flex-col border-r bg-sidebar text-sidebar-foreground">
-        <div className="px-6 py-5">
-          <span className="text-lg font-semibold tracking-tight">
-            Moduls<span className="text-amber-500">Admin</span>
-          </span>
-          <p className="mt-0.5 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-            Admin
-          </p>
-        </div>
+    <div className="flex h-screen flex-col bg-muted/30">
+      {/* Header — full width, on top. Sidebar starts below it. */}
+      <header
+        ref={headerRef}
+        className="flex h-14 shrink-0 items-center gap-3 border-b bg-background px-4"
+      >
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => setSidebarOpen((open) => !open)}
+          aria-label={sidebarOpen ? "Close sidebar" : "Open sidebar"}
+        >
+          <Menu className="size-5" />
+        </Button>
+        <span className="text-lg font-semibold tracking-tight">
+          Moduls<span className="text-amber-500">Admin</span>
+        </span>
+      </header>
 
-        {businesses.length > 1 && (
-          <div className="px-3 pb-2">
-            <Select
-              items={businesses.map((b) => ({ label: b.name, value: b.id }))}
-              value={activeBusinessId ?? businesses[0]?.id}
-              onValueChange={(value) => {
-                if (value) switchBusiness(value);
-              }}
-            >
-              <SelectTrigger className="w-full" aria-label="Active business">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {businesses.map((b) => (
-                  <SelectItem key={b.id} value={b.id}>
-                    {b.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        )}
-        <Separator />
-
-        <nav className="flex-1 space-y-1 p-3">
-          {visibleSections.map((item) => {
-            const Icon = item.icon;
-            const isActive = effectiveActive === item.id;
-            return (
-              <Button
-                key={item.id}
-                variant={isActive ? "secondary" : "ghost"}
-                className="w-full justify-start gap-3"
-                onClick={() => setActive(item.id)}
-              >
-                <Icon className="size-4" />
-                {item.label}
-              </Button>
-            );
-          })}
-        </nav>
-
-        <Separator />
-        <div className="space-y-1 p-3">
-          {isSuperAdmin && (
-            <Link
-              href="/admin/super/modules"
-              className={cn(
-                buttonVariants({ variant: "ghost" }),
-                "w-full justify-start gap-3",
-              )}
-            >
-              <Settings className="size-4" />
-              Module Settings
-            </Link>
-          )}
-          <Link
-            href="/"
-            className={cn(
-              buttonVariants({ variant: "ghost" }),
-              "w-full justify-start gap-3",
-            )}
+      {/* Below the header: collapsible sidebar + main content. */}
+      <div className="flex min-h-0 flex-1">
+        {sidebarOpen && (
+          <aside
+            ref={sidebarRef}
+            className="flex w-60 shrink-0 flex-col overflow-y-auto border-r bg-sidebar text-sidebar-foreground [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           >
-            <ArrowLeft className="size-4" />
-            Back to site
-          </Link>
-          <form action={logout}>
-            <Button
-              type="submit"
-              variant="ghost"
-              className="w-full justify-start gap-3 text-destructive hover:text-destructive"
-            >
-              <LogOut className="size-4" />
-              Sign out
-            </Button>
-          </form>
-        </div>
-      </aside>
+            {businesses.length > 1 && (
+              <div className="px-3 pt-3 pb-2">
+                <Select
+                  items={businesses.map((b) => ({ label: b.name, value: b.id }))}
+                  value={activeBusinessId ?? businesses[0]?.id}
+                  onValueChange={(value) => {
+                    if (value) switchBusiness(value);
+                  }}
+                >
+                  <SelectTrigger className="w-full" aria-label="Active business">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {businesses.map((b) => (
+                      <SelectItem key={b.id} value={b.id}>
+                        {b.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Separator className="mt-2" />
+              </div>
+            )}
 
-      <main className="flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-5xl px-8 py-10">
-          {effectiveActive === "overview" && (
-            <OverviewSection stats={stats} enabledModules={enabledModules} />
-          )}
-          {effectiveActive === "properties" && (
-            <PropertiesSection properties={properties} />
-          )}
-          {effectiveActive === "bookings" && (
-            <BookingsSection bookings={bookings} properties={properties} />
-          )}
-          {effectiveActive === "customers" && (
-            <CustomersSection customers={customers} />
-          )}
-        </div>
-      </main>
+            <nav className="flex-1 space-y-1 p-3">
+              {visibleSections.map((item) => {
+                const Icon = item.icon;
+                const isActive = effectiveActive === item.id;
+                return (
+                  <Button
+                    key={item.id}
+                    variant={isActive ? "secondary" : "ghost"}
+                    className="w-full justify-start gap-3"
+                    onClick={() => setActive(item.id)}
+                  >
+                    <Icon className="size-4" />
+                    {item.label}
+                  </Button>
+                );
+              })}
+            </nav>
+
+            <Separator />
+            <div className="space-y-1 p-3">
+              {isSuperAdmin && (
+                <Link
+                  href="/admin/super/modules"
+                  className={cn(
+                    buttonVariants({ variant: "ghost" }),
+                    "w-full justify-start gap-3",
+                  )}
+                >
+                  <Settings className="size-4" />
+                  Module Settings
+                </Link>
+              )}
+              <Link
+                href="/"
+                className={cn(
+                  buttonVariants({ variant: "ghost" }),
+                  "w-full justify-start gap-3",
+                )}
+              >
+                <ArrowLeft className="size-4" />
+                Back to site
+              </Link>
+              <form action={logout}>
+                <Button
+                  type="submit"
+                  variant="ghost"
+                  className="w-full justify-start gap-3 text-destructive hover:text-destructive"
+                >
+                  <LogOut className="size-4" />
+                  Sign out
+                </Button>
+              </form>
+            </div>
+          </aside>
+        )}
+
+        <main className="flex-1 overflow-y-auto">
+          <div className="mx-auto max-w-5xl px-8 py-10">
+            {effectiveActive === "overview" && (
+              <OverviewSection stats={stats} enabledModules={enabledModules} />
+            )}
+            {effectiveActive === "properties" && (
+              <PropertiesSection properties={properties} />
+            )}
+            {effectiveActive === "bookings" && (
+              <BookingsSection bookings={bookings} properties={properties} />
+            )}
+            {effectiveActive === "customers" && (
+              <CustomersSection customers={customers} />
+            )}
+          </div>
+        </main>
+      </div>
     </div>
   );
 }
