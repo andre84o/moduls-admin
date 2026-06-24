@@ -1,6 +1,8 @@
 import "server-only";
 import type Stripe from "stripe";
 import { getPrisma } from "./prisma";
+import { upsertCustomerFromConfirmedBooking } from "./crm";
+import { notifyBookingConfirmed } from "./email";
 
 export type ConfirmResult =
   | "CONFIRMED"    // newly confirmed by this call
@@ -51,5 +53,60 @@ export async function confirmPaidBooking(
     data: { status: "CONFIRMED", paid: true, stripePaymentIntentId: paymentIntentId },
   });
 
-  return res.count === 1 ? "CONFIRMED" : "ALREADY";
+  if (res.count !== 1) return "ALREADY";
+
+  // Post-confirmation side effects: CRM customer upsert + customer/admin emails.
+  // Best-effort only — a CRM or email failure (or unconfigured email/CRM) must
+  // never undo the confirmation or trigger a Stripe retry, so everything here is
+  // swallowed. Runs once: only the call that actually flipped the row gets here.
+  try {
+    const full = await prisma.booking.findFirst({
+      where: { id: booking.id, businessId: booking.businessId },
+      select: {
+        guestName: true,
+        guestEmail: true,
+        startAt: true,
+        endAt: true,
+        nights: true,
+        totalAmount: true,
+        currency: true,
+        property: { select: { title: true } },
+        business: { select: { name: true, email: true } },
+      },
+    });
+    if (full) {
+      const { customerId } = await upsertCustomerFromConfirmedBooking({
+        businessId: booking.businessId,
+        email: full.guestEmail,
+        name: full.guestName,
+      });
+      if (customerId) {
+        await prisma.booking.updateMany({
+          where: { id: booking.id, businessId: booking.businessId },
+          data: { customerId },
+        });
+      }
+
+      const fmtDate = (d: Date) => d.toISOString().slice(0, 10);
+      const totalLabel = `${((full.totalAmount ?? 0) / 100).toFixed(2)} ${full.currency.toUpperCase()}`;
+
+      await notifyBookingConfirmed({
+        businessId: booking.businessId,
+        businessName: full.business?.name ?? "Admin",
+        adminEmail: full.business?.email ?? process.env.ADMIN_EMAIL ?? null,
+        customerEmail: full.guestEmail,
+        customerName: full.guestName,
+        customerPhone: null,
+        propertyName: full.property?.title ?? "Booking",
+        checkIn: fmtDate(full.startAt),
+        checkOut: fmtDate(full.endAt),
+        nights: full.nights,
+        totalLabel,
+      });
+    }
+  } catch (err) {
+    console.error("[booking-confirm] post-confirm side-effects failed", err);
+  }
+
+  return "CONFIRMED";
 }

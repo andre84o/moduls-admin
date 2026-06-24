@@ -100,3 +100,55 @@ export async function notifyBooking(opts: {
     });
   }
 }
+
+/** Notify the customer and the business admin that a paid booking is confirmed. */
+export async function notifyBookingConfirmed(opts: {
+  businessId: string;
+  businessName: string;
+  adminEmail: string | null;
+  customerEmail: string | null;
+  customerName: string;
+  customerPhone?: string | null;
+  propertyName: string;
+  checkIn: string;
+  checkOut: string;
+  nights: number | null;
+  totalLabel: string;
+}): Promise<void> {
+  const {
+    businessId, businessName, adminEmail, customerEmail, customerName,
+    customerPhone, propertyName, checkIn, checkOut, nights, totalLabel,
+  } = opts;
+
+  if (customerEmail) {
+    await sendNotification({
+      businessId,
+      to: customerEmail,
+      audience: "CUSTOMER",
+      subject: `Your booking at ${businessName} is confirmed`,
+      html: `<p>Hi ${customerName},</p>
+<p>Your booking is confirmed and your payment was received.</p>
+<p><strong>${propertyName}</strong><br/>
+Check-in: ${checkIn}<br/>
+Check-out: ${checkOut}<br/>
+Nights: ${nights ?? "-"}<br/>
+Total paid: ${totalLabel}</p>
+<p>Thank you!<br/>— ${businessName}</p>`,
+    });
+  }
+
+  if (adminEmail) {
+    await sendNotification({
+      businessId,
+      to: adminEmail,
+      audience: "ADMIN",
+      subject: `New paid booking: ${propertyName}`,
+      html: `<p>A new paid booking was confirmed.</p>
+<p><strong>${propertyName}</strong><br/>
+Check-in: ${checkIn}<br/>
+Check-out: ${checkOut}<br/>
+Total paid: ${totalLabel}</p>
+<p>Customer: ${customerName}${customerEmail ? ` (${customerEmail})` : ""}${customerPhone ? ` — ${customerPhone}` : ""}</p>`,
+    });
+  }
+}
