@@ -38,7 +38,6 @@ Before adding a new feature, decide whether it belongs to:
 
 Do not mix these layers.
 
-
 # Shared Supabase + Prisma Architecture Rules
 
 This project uses the shared Supabase database for multiple small client projects.
@@ -579,7 +578,6 @@ Before marking work as complete, Claude must check:
 
 If any item fails, Claude must fix it before saying the task is complete.
 
-
 ## Project file structure rules
 
 Claude must keep the project structure clean and predictable.
@@ -807,7 +805,6 @@ Before creating a new file, Claude must check:
   * Put it in `public/`.
 
 Do not create files in the root unless the file is a standard project config file.
-
 
 ## Footer
 Design & development by Intenzze ska inte tas bort i footer
