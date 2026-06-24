@@ -21,6 +21,10 @@ export function isEmailConfigured(): boolean {
   return Boolean(process.env.RESEND_API_KEY);
 }
 
+export function isPaymentConfigured(): boolean {
+  return Boolean(process.env.STRIPE_SECRET_KEY && process.env.STRIPE_WEBHOOK_SECRET);
+}
+
 /**
  * Demo mode: no real database is configured yet. The admin UI stays browsable
  * with seeded demo data and a synthetic SUPER_ADMIN session. Server-side only.
