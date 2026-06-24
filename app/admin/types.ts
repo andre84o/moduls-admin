@@ -2,7 +2,14 @@
 // They mirror the Prisma models but keep Prisma out of the client bundle.
 // Dates are passed as ISO strings.
 
-export type BookingStatus = "PENDING" | "CONFIRMED" | "DECLINED" | "CANCELLED";
+export type BookingStatus =
+  | "PENDING"
+  | "PAYMENT_PENDING"
+  | "CONFIRMED"
+  | "DECLINED"
+  | "CANCELLED"
+  | "EXPIRED"
+  | "REFUNDED";
 export type CustomerStage = "LEAD" | "CONTACTED" | "CUSTOMER";
 export type PropertyStatus = "DRAFT" | "PUBLISHED" | "ARCHIVED";
 

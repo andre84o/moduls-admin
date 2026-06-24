@@ -35,9 +35,12 @@ const statusBadge: Record<
   { label: string; variant: "default" | "secondary" | "destructive" | "outline" }
 > = {
   PENDING: { label: "Pending", variant: "secondary" },
+  PAYMENT_PENDING: { label: "Payment pending", variant: "secondary" },
   CONFIRMED: { label: "Confirmed", variant: "default" },
   DECLINED: { label: "Declined", variant: "destructive" },
   CANCELLED: { label: "Cancelled", variant: "outline" },
+  EXPIRED: { label: "Expired", variant: "outline" },
+  REFUNDED: { label: "Refunded", variant: "outline" },
 };
 
 function fmt(iso: string): string {

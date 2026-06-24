@@ -124,16 +124,38 @@ model Property {
   slug        String?
   description String?
   location    String
+  // Legacy generic price (kept for backward-compat with existing admin UI).
+  // Booking math reads pricePerNight, never this. Remove in a later cleanup.
   price       Int?
   bedrooms    Int?
   status      PropertyStatus @default(PUBLISHED)
+
+  // ── RENTAL booking settings ─────────────────────────────────────────
+  // Money is stored in MINOR units (öre/cents) for Stripe-safe integer math.
+  pricePerNight           Int?
+  cleaningFee             Int?     @default(0)
+  currency                String   @default("sek")
+  minNights               Int      @default(1)
+  maxGuests               Int?
+  maxAdults               Int?
+  maxChildren             Int?
+  maxInfants              Int?
+  maxPets                 Int?     @default(0)
+  petsAllowed             Boolean  @default(false)
+  bufferDaysAfterCheckout Int      @default(0)
+  cancellationDeadlineDays Int?
+
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
 
-  business Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  bookings Booking[]
-  media    Media[]
+  business     Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  bookings     Booking[]
+  media        Media[]
+  blockedTimes BlockedTime[]
 
+  // Public route key (app/p/[slug]). Nullable slugs stay allowed — Postgres
+  // treats NULLs as distinct, so many properties may have no slug yet.
+  @@unique([businessId, slug])
   @@index([businessId])
   @@map("properties")
 }
@@ -256,6 +278,27 @@ model Booking {
   endAt      DateTime
   status     BookingStatus @default(PENDING)
   notes      String?
+
+  // ── Guest breakdown ─────────────────────────────────────────────────
+  adults   Int @default(1)
+  children Int @default(0)
+  infants  Int @default(0)
+  pets     Int @default(0)
+
+  // ── Price snapshot (minor units) taken server-side at booking time ──
+  nights                Int?
+  pricePerNightSnapshot Int?
+  cleaningFeeSnapshot   Int?    @default(0)
+  totalAmount           Int?
+  currency              String  @default("sek")
+
+  // ── Payment (Stripe) — booking is only CONFIRMED via verified webhook ─
+  stripeSessionId       String? @unique
+  stripePaymentIntentId String?
+  paid                  Boolean @default(false)
+  // While PAYMENT_PENDING the dates are held; expired holds are released.
+  holdExpiresAt         DateTime?
+
   createdAt  DateTime      @default(now())
   updatedAt  DateTime      @updatedAt
 
@@ -266,6 +309,7 @@ model Booking {
 
   @@index([businessId])
   @@index([businessId, startAt])
+  @@index([businessId, propertyId, startAt])
   @@map("bookings")
 }
 
@@ -284,16 +328,20 @@ model Availability {
 }
 
 /// One-off blocked range (holiday, maintenance) — removes slots from calendar.
+/// propertyId scopes the block to one property; null = business-wide block.
 model BlockedTime {
   id         String   @id @default(cuid())
   businessId String
+  propertyId String?
   startAt    DateTime
   endAt      DateTime
   reason     String?
 
-  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  business Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  property Property? @relation(fields: [propertyId], references: [id], onDelete: Cascade)
 
   @@index([businessId])
+  @@index([businessId, propertyId])
   @@map("blocked_times")
 }
 
@@ -369,9 +417,12 @@ enum CustomerStage {
 
 enum BookingStatus {
   PENDING
+  PAYMENT_PENDING
   CONFIRMED
   DECLINED
   CANCELLED
+  EXPIRED
+  REFUNDED
 }
 
 enum NotificationAudience {
