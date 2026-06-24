@@ -1,5 +1,6 @@
 import "server-only";
 import type { PrismaClient } from "@/app/generated/prisma/client";
+import { getPrisma } from "./prisma";
 
 /**
  * Server-only availability check for a property over a date range.
@@ -97,4 +98,55 @@ export async function isPropertyAvailable(args: {
   if (blocked) return false;
 
   return true;
+}
+
+export type ReservedRange = { start: string; end: string }; // "yyyy-mm-dd", end exclusive
+
+/**
+ * Reserved/blocked date ranges for ONE property, for disabling dates in the
+ * public calendar. Active bookings (CONFIRMED + non-expired PAYMENT_PENDING),
+ * with their end extended by bufferDaysAfterCheckout, plus BlockedTime
+ * (property-specific OR business-wide). businessId/propertyId are server-resolved
+ * from the Property row. The backend remains the final authority on conflicts.
+ */
+export async function getReservedRanges(args: {
+  businessId: string;
+  propertyId: string;
+  bufferDays: number;
+  now?: Date;
+}): Promise<ReservedRange[]> {
+  const { businessId, propertyId, bufferDays } = args;
+  const now = args.now ?? new Date();
+  const prisma = getPrisma();
+  const toYmd = (d: Date) => d.toISOString().slice(0, 10);
+
+  const bookings = await prisma.booking.findMany({
+    where: {
+      businessId,
+      propertyId,
+      status: { in: ["CONFIRMED", "PAYMENT_PENDING"] },
+      endAt: { gt: now }, // only current/future occupancy matters
+    },
+    select: { startAt: true, endAt: true, status: true, holdExpiresAt: true },
+  });
+
+  const ranges: ReservedRange[] = [];
+  for (const b of bookings) {
+    if (b.status === "PAYMENT_PENDING" && b.holdExpiresAt && b.holdExpiresAt <= now) continue; // expired hold
+    ranges.push({ start: toYmd(b.startAt), end: toYmd(addDays(b.endAt, bufferDays)) });
+  }
+
+  const blocked = await prisma.blockedTime.findMany({
+    where: {
+      businessId,
+      OR: [{ propertyId }, { propertyId: null }],
+      endAt: { gt: now },
+    },
+    select: { startAt: true, endAt: true },
+  });
+  for (const bt of blocked) {
+    ranges.push({ start: toYmd(bt.startAt), end: toYmd(bt.endAt) });
+  }
+
+  return ranges;
 }

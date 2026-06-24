@@ -1,3 +1,6 @@
+import { Suspense } from "react";
+import { BookingBanner } from "./_components/booking-banner";
+
 const features = [
   {
     title: "Multi-tenant",
@@ -16,6 +19,9 @@ const features = [
 export default function Home() {
   return (
     <div className="flex flex-1 flex-col bg-white text-zinc-900">
+      <Suspense fallback={null}>
+        <BookingBanner />
+      </Suspense>
       {/* Header */}
       <header className="border-b border-zinc-100">
         <nav className="mx-auto flex max-w-6xl items-center justify-between px-6 py-5">
