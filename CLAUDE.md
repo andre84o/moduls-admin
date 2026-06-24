@@ -1,12 +1,18 @@
 @AGENTS.md
 
-hämta componenter från https://ui.shadcn.com
+# AGENTS.md / CLAUDE.md
+
+Use components from:
+
+https://ui.shadcn.com
 
 ## Project base / SaaS template rule
 
 This project should be treated as a reusable SaaS base for future small-business projects, not as a one-off client project.
 
-Core functionality should stay generic and reusable:
+Core functionality must stay generic and reusable.
+
+Core includes:
 
 * Auth
 * Business
@@ -14,11 +20,13 @@ Core functionality should stay generic and reusable:
 * Users
 * Roles
 * Admin shell
-* Media library
+* Module gating
+* Media/storage infrastructure
 * Audit logs
 * Settings
 * Storage setup
 * Tenant isolation
+* Super Admin module control
 
 Do not hardcode client-specific names, routes, business logic, demo data, or UI text into the core system.
 
@@ -28,7 +36,7 @@ Never read, update, delete, list, or attach business-owned data by `id` alone.
 
 Always resolve `businessId` on the server from the logged-in user and their `BusinessMember` access.
 
-Optional features such as booking, CRM, rentals, services, staff, invoices, and website pages should be treated as modules that can be enabled per business.
+Optional features such as booking, CRM, rentals, services, staff, invoices, products, website pages, and custom tools must be treated as modules that can be enabled per business.
 
 Before adding a new feature, decide whether it belongs to:
 
@@ -38,10 +46,44 @@ Before adding a new feature, decide whether it belongs to:
 
 Do not mix these layers.
 
+## Modular SaaS architecture
 
-# Shared Supabase + Prisma Architecture Rules
+This repo may contain multiple optional business modules in the same codebase.
 
-This project uses the shared Supabase database for multiple small client projects.
+Core must stay generic and reusable.
+
+Optional modules may include:
+
+* Rental
+* Booking
+* CRM
+* Invoice
+* Products
+* Website
+* Staff
+* Services
+* CollectedHomes or real-estate specific tools
+* Custom client tools
+
+Rules:
+
+* Core may not depend on optional modules.
+* Optional modules may depend on core.
+* Optional modules should not depend tightly on each other.
+* Each module must have its own routes, queries, actions, components, and guards.
+* Do not place all module logic in shared files like `lib/actions.ts` or `lib/queries.ts`.
+* Disabled modules must not load data, show navigation, or allow server actions.
+* Heavy modules must only load on their own routes/pages.
+* Do not fetch data for all modules on the main admin page.
+* Every business-owned module table must include `businessId`.
+* Every module read/write/delete must be scoped by server-resolved `businessId`.
+* Every module action must use the correct module guard, for example `requireModule(ProjectType.RENTAL)`.
+* Keep client-specific functionality inside its module, never in core.
+* Do not build module-specific UI directly into the core admin shell unless it is gated by enabled modules.
+
+## Shared Supabase + Prisma Architecture Rules
+
+This project uses one shared Supabase database for multiple small client projects.
 
 The database is multi-tenant.
 
@@ -60,9 +102,11 @@ Each business can have different enabled modules, for example:
 * CRM
 * Booking
 * Website admin
-* Media library
+* Media/storage infrastructure
 * Staff management
 * Rental system
+* Invoice system
+* Product system
 * Custom admin tools
 
 Even if different businesses use different features, all business-owned data must follow the same tenant isolation structure.
@@ -84,6 +128,9 @@ Examples of business-owned tables:
 * Message
 * UploadedFile
 * Setting
+* Product
+* Rental
+* Property
 
 These tables must always include:
 
@@ -136,6 +183,10 @@ If the project needs booking, add:
 If the project needs uploads/images/files, add:
 
 * `Media`
+
+If the project needs invoices, add invoice-specific models inside the invoice module.
+
+If the project needs products, add product-specific models inside the product module.
 
 Do not add unnecessary models.
 
@@ -217,7 +268,7 @@ Use these roles:
 
 Meaning:
 
-* `SUPER_ADMIN` can access all businesses and platform-level admin tools.
+* `SUPER_ADMIN` can access platform-level admin tools and explicitly approved cross-business views.
 * `OWNER` owns one business.
 * `ADMIN` manages one business.
 * `STAFF` has limited access inside one business.
@@ -226,9 +277,9 @@ A role must be checked together with `businessId`.
 
 A user being `ADMIN` for one business does not mean they are admin for another business.
 
-## Project model
+## Project model / module enablement
 
-`Project` represents a client module or system inside a business.
+`Project` represents an enabled client module or system inside a business.
 
 Examples:
 
@@ -252,6 +303,16 @@ Required fields:
 A business can have multiple projects/modules.
 
 Different businesses can have different modules enabled.
+
+Enabled module = a `Project` row for the business with status `ACTIVE`.
+
+Disabled module = a `Project` row with status `DISABLED`, or no row at all depending on the project logic.
+
+Do not delete module rows when disabling a module unless explicitly instructed. Prefer setting status to `DISABLED`.
+
+Super Admin module settings may toggle module status per business.
+
+Media/storage infrastructure is core and should not be treated as a free customer-facing module.
 
 ## Absolute tenant isolation rules
 
@@ -366,6 +427,35 @@ Do not duplicate access logic in every file.
 
 Do not rely on client-side checks for security.
 
+## Module guard rules
+
+Every optional module must have a server-side module guard.
+
+Use a helper similar to:
+
+```ts
+await requireModule(ProjectType.RENTAL)
+```
+
+Module examples:
+
+* Properties / rentals writes require `ProjectType.RENTAL`
+* Booking writes require `ProjectType.BOOKING`
+* CRM/customer writes require `ProjectType.CRM`
+* Invoice writes require `ProjectType.INVOICE` if the enum exists
+* Product writes require `ProjectType.PRODUCT` or equivalent if the enum exists
+
+Disabled modules must:
+
+* Not show navigation.
+* Not load module data.
+* Not allow server actions.
+* Not allow direct URL or direct action access.
+
+Hiding UI is not security.
+
+Server-side guards are required.
+
 ## SUPER_ADMIN rules
 
 `SUPER_ADMIN` access must be explicit.
@@ -381,6 +471,10 @@ Example:
 ```ts
 // Platform-level access. Only SUPER_ADMIN may view all businesses.
 ```
+
+Regular `OWNER`, `ADMIN`, and `STAFF` must never access platform-level pages.
+
+Super Admin pages must be protected server-side, not only hidden in navigation.
 
 ## Supabase and Prisma rules
 
@@ -405,7 +499,19 @@ Do not expose Supabase service role key to the browser.
 
 Private admin data must be loaded server-side.
 
-## Supabase Storage rules
+## Supabase Storage and Media rules
+
+Media is core infrastructure, not a standalone free-upload area.
+
+Do not create a general admin Media page where customers can freely upload random files.
+
+Uploads must be contextual and attached to a real owner, for example:
+
+* Property images
+* Product images
+* Business logo
+* Customer documents
+* Invoice attachments
 
 All uploaded files must be stored in business-specific folders.
 
@@ -423,15 +529,34 @@ Every uploaded file must have a `Media` database record with:
 
 * `id`
 * `businessId`
-* `url`
+* `kind`
+* `visibility`
+* `bucket`
 * `path`
-* `type`
-* `alt`
+* `url`
+* `ownerType`
+* `ownerId`
+* `folder`
+* `name`
+* `size`
+* `width`
+* `height`
 * `createdAt`
+* `updatedAt`
 
-Never show media from another `businessId`.
+Rules:
 
-Never delete media by path only without verifying `businessId`.
+* Public images may store a permanent `url`.
+* Private documents must use `url = null` and be served through signed URLs.
+* Public website images/logos may use public storage.
+* Customer documents, contracts, invoices, and internal files must use private storage.
+* Media visibility must be decided server-side.
+* Never trust `ownerType`, `ownerId`, `folder`, `visibility`, or `path` from the frontend.
+* The server must validate that the owner belongs to the resolved `businessId`.
+* Delete media only after verifying `id + businessId`.
+* Media backend/services/components may remain reusable, but standalone free-upload UI should not be part of core admin.
+* Media upload UI should be used contextually inside modules or forms.
+* Media components may be inline sections or modals depending on the module need.
 
 ## Public route rules
 
@@ -464,6 +589,7 @@ Every admin page must verify:
 3. User belongs to the selected business.
 4. User role allows the action.
 5. Data is filtered by `businessId`.
+6. Required module is enabled when the page belongs to an optional module.
 
 Never use frontend redirects as the only protection.
 
@@ -483,6 +609,8 @@ If the project includes bookings:
 
 Booking conflicts must be checked in the backend before creating or updating a booking.
 
+Booking module routes, queries, and actions must require the booking module to be enabled.
+
 ## CRM rules
 
 If the project includes CRM:
@@ -494,6 +622,29 @@ Every note, tag, message, task, or activity must include `businessId`.
 CRM data must never be shared across businesses.
 
 Customer search must always be filtered by `businessId`.
+
+CRM routes, queries, and actions must require the CRM module to be enabled.
+
+## Rental / Property rules
+
+If the project includes rentals or properties:
+
+* Every property/rental must include `businessId`.
+* Property images must use contextual media upload.
+* Property media must be attached to the property owner context.
+* Public property pages must only expose public active property data.
+* Property create/update/delete actions must require the rental module to be enabled.
+* Never hardcode rental-specific logic into core.
+
+## Invoice rules
+
+If the project includes invoices:
+
+* Every invoice must include `businessId`.
+* Every invoice customer relation must be scoped by `businessId`.
+* Invoice files must use private storage unless explicitly public.
+* Invoice routes, queries, and actions must require the invoice module to be enabled.
+* Do not mix invoice logic into CRM or core unless it is a shared generic helper.
 
 ## Audit log rules
 
@@ -507,6 +658,8 @@ Examples:
 * user invited
 * role changed
 * business settings updated
+* module enabled or disabled
+* invoice created or updated
 
 `AuditLog` must include:
 
@@ -518,6 +671,13 @@ Examples:
 * `entityId`
 * `metadata`
 * `createdAt`
+
+Cross-business Super Admin actions should either:
+
+* create a platform-level audit log, or
+* create a business-scoped audit log for the affected business
+
+depending on the project schema.
 
 ## Naming rules
 
@@ -533,6 +693,10 @@ Good:
 * member
 * staff
 * media
+* module
+* property
+* invoice
+* product
 
 Avoid narrow names unless the project specifically requires them.
 
@@ -543,6 +707,8 @@ Bad:
 * pizza
 * therapist
 * rentalOwner
+* stefanie
+* costastay
 
 ## UI text rules
 
@@ -556,29 +722,11 @@ This includes:
 * errors
 * empty states
 * dashboard text
+* admin navigation
+* form text
+* toast messages
 
 Code comments can be in Swedish if useful.
-
-## Required review before completion
-
-Before marking work as complete, Claude must check:
-
-* Every business-owned model has `businessId`.
-* Every business-owned query is scoped by `businessId`.
-* No update/delete uses `id` only.
-* Auth is checked server-side.
-* Role access is checked server-side.
-* Supabase service role key is not exposed.
-* Storage paths include `businessId`.
-* Public routes expose only safe data.
-* Admin routes are protected.
-* Prisma schema is consistent.
-* No separate tables were created per client.
-* No unrelated files or styling were changed.
-* The project builds without TypeScript errors.
-
-If any item fails, Claude must fix it before saying the task is complete.
-
 
 ## Project file structure rules
 
@@ -640,6 +788,43 @@ Reusable global components must stay in:
 components/
 ```
 
+## Module file structure
+
+Optional modules should be grouped clearly.
+
+Preferred structure:
+
+```txt
+modules/
+modules/rental/
+modules/booking/
+modules/crm/
+modules/invoice/
+modules/products/
+modules/website/
+modules/collectedhomes/
+```
+
+Each module may contain:
+
+* `actions.ts`
+* `queries.ts`
+* `components/`
+* `types.ts`
+* `utils.ts`
+* route-specific files where relevant
+
+If the project is not yet using a `modules/` folder, keep module logic clearly separated and do not keep expanding generic shared files forever.
+
+Do not dump all optional module logic into:
+
+* `lib/actions.ts`
+* `lib/queries.ts`
+* `app/admin/page.tsx`
+* `app/admin/_components/admin-shell.tsx`
+
+Those files may orchestrate core behavior, but should not become junk drawers for every module.
+
 ## SQL file structure
 
 All SQL files must be stored in one dedicated folder.
@@ -653,10 +838,9 @@ scripts/sql/
 Examples:
 
 ```txt
-scripts/sql/boost.sql
-scripts/sql/040003030.sql
-scripts/sql/create-business-tables.sql
-scripts/sql/add-booking-indexes.sql
+scripts/sql/001_create_business_tables.sql
+scripts/sql/002_create_booking_tables.sql
+scripts/sql/003_add_indexes.sql
 ```
 
 Do not place SQL files in random folders.
@@ -671,14 +855,6 @@ migration.sql
 ```
 
 If SQL files are migrations, use clear ordered names.
-
-Example:
-
-```txt
-scripts/sql/001_create_business_tables.sql
-scripts/sql/002_create_booking_tables.sql
-scripts/sql/003_add_indexes.sql
-```
 
 ## Script structure
 
@@ -761,6 +937,7 @@ The project should generally follow this structure:
 app/
 components/
 lib/
+modules/
 scripts/
 scripts/sql/
 scripts/jobs/
@@ -786,6 +963,10 @@ Before creating a new file, Claude must check:
 
   * Put it in the page `_components` folder.
 
+* Is this module-specific logic?
+
+  * Put it inside the relevant module folder or a clearly named module area.
+
 * Is this SQL?
 
   * Put it in `scripts/sql/`.
@@ -808,6 +989,70 @@ Before creating a new file, Claude must check:
 
 Do not create files in the root unless the file is a standard project config file.
 
+## Performance rules
 
-## Footer
-Design & development by Intenzze ska inte tas bort i footer
+Do not load every module on the main admin page.
+
+Only load module code and module data when the current route or enabled module needs it.
+
+Avoid large shared admin pages that fetch Rental, Booking, CRM, Invoice, Products, and custom modules at the same time.
+
+Avoid importing heavy client components globally.
+
+Module-specific heavy components should be route-local or dynamically loaded when appropriate.
+
+Disabled modules must not trigger database queries or expensive work.
+
+Keep the admin shell light.
+
+## Work process rules
+
+Keep work isolated.
+
+Use small focused commits.
+
+Do not mix unrelated features in one commit.
+
+Before committing, show changed files and confirm scope.
+
+Do not modify unrelated styling unless explicitly requested.
+
+Do not refactor unrelated code unless explicitly requested.
+
+Do not change existing behavior unless the task requires it.
+
+For larger development tasks, split the work between 5 agents:
+
+1. Inspect current implementation.
+2. Implement the change.
+3. Review tenant/security boundaries.
+4. Review UI/types/build.
+5. Produce final summary and next-step risks.
+
+## Required validation before completion
+
+Before marking work as complete, Claude must check:
+
+* Every business-owned model has `businessId`.
+* Every business-owned query is scoped by `businessId`.
+* No update/delete uses `id` only.
+* Auth is checked server-side.
+* Role access is checked server-side.
+* Module access is checked server-side for optional modules.
+* Disabled modules do not load data, show navigation, or allow server actions.
+* Supabase service role key is not exposed.
+* Storage paths include `businessId`.
+* Public routes expose only safe data.
+* Admin routes are protected.
+* Prisma schema is consistent.
+* No separate tables were created per client.
+* No unrelated files or styling were changed.
+* The project builds without TypeScript errors.
+* `npx tsc --noEmit` passes.
+* `npm run build` passes.
+
+If any item fails, Claude must fix it before saying the task is complete.
+
+## Footer rule
+
+`Design & development by Intenzze` must not be removed from the footer.
