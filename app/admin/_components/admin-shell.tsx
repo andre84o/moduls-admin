@@ -129,11 +129,18 @@ export function AdminShell({
 
       {/* Below the header: collapsible sidebar + main content. */}
       <div className="flex min-h-0 flex-1">
-        {sidebarOpen && (
-          <aside
-            ref={sidebarRef}
-            className="flex w-60 shrink-0 flex-col overflow-y-auto border-r bg-sidebar text-sidebar-foreground [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-          >
+        {/* The sidebar stays mounted and animates its width via CSS (compositor-
+            friendly, no JS per frame, no extra bundle). The inner wrapper keeps a
+            fixed width so content is clipped rather than reflowed while sliding. */}
+        <aside
+          ref={sidebarRef}
+          aria-hidden={!sidebarOpen}
+          className={cn(
+            "shrink-0 overflow-hidden bg-sidebar text-sidebar-foreground transition-[width] duration-300 ease-in-out motion-reduce:transition-none",
+            sidebarOpen ? "w-60 border-r" : "w-0",
+          )}
+        >
+          <div className="flex h-full w-60 flex-col overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {businesses.length > 1 && (
               <div className="px-3 pt-3 pb-2">
                 <Select
@@ -211,8 +218,8 @@ export function AdminShell({
                 </Button>
               </form>
             </div>
-          </aside>
-        )}
+          </div>
+        </aside>
 
         <main className="flex-1 overflow-y-auto">
           <div className="mx-auto max-w-5xl px-8 py-10">
