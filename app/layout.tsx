@@ -13,9 +13,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Costa Stay — Semesterboende i Spanien",
+  title: "ModulsAdmin",
   description:
-    "Hyr handplockade semesterboenden vid den spanska kusten. Havsutsikt, pooler och soliga dagar väntar.",
+    "A secure, multi-tenant admin platform for running and managing your business modules.",
 };
 
 export default function RootLayout({
