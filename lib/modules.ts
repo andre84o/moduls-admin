@@ -4,6 +4,7 @@ import { ProjectType } from "@/app/generated/prisma/enums";
 import type { MemberRole } from "@/app/generated/prisma/enums";
 import { requireBusinessAccess, type BusinessAccess } from "./auth";
 import { getPrisma } from "./prisma";
+import { isDemoMode } from "./config";
 
 /**
  * Server-side module enablement boundary for the multi-tenant SaaS.
@@ -80,4 +81,21 @@ export async function requireModule(
   }
 
   return access;
+}
+
+/**
+ * PUBLIC module check by an ALREADY SERVER-RESOLVED businessId (e.g. read from a
+ * Property row). The businessId MUST come from the server, NEVER from the client.
+ * Used by public, sessionless flows that cannot call requireBusinessAccess.
+ */
+export async function isModuleEnabledForBusiness(
+  businessId: string,
+  type: ProjectType,
+): Promise<boolean> {
+  if (isDemoMode()) return true; // demo: every module enabled (mirror getEnabledModules)
+  const row = await getPrisma().project.findFirst({
+    where: { businessId, type, status: "ACTIVE" },
+    select: { id: true },
+  });
+  return row !== null;
 }
