@@ -29,10 +29,15 @@ export type CustomerContent = {
   /**
    * Brand wordmark shown in header/footer. `accent` is rendered in the theme
    * accent color; `primary` + `accent` together form the full brand name.
+   *
+   * `logoUrl` is an optional image reference (e.g. "/images/logo.svg" or a
+   * remote URL). It is a placeholder for when the customer provides a real
+   * logo; the wordmark is used until then.
    */
   brand: {
     primary: string;
     accent: string;
+    logoUrl?: string;
   };
   home: {
     hero: {
@@ -68,16 +73,21 @@ export type CustomerContent = {
   };
 };
 
+// NOTE: The values below are clean, generic English PLACEHOLDERS. No real
+// customer copy was available at setup time. Replace each value with the
+// customer's real content here in config — do not hardcode it into the shared
+// section components. Keep claims honest; do not invent specifics.
 export const customerContent: CustomerContent = {
   brand: {
-    primary: "Moduls",
-    accent: "Admin",
+    primary: "Your",
+    accent: "Brand",
+    logoUrl: "",
   },
   home: {
     hero: {
-      eyebrow: "Admin platform",
-      heading: "The admin platform for your business",
-      body: "A secure, multi-tenant foundation for running and managing your business modules from a single place.",
+      eyebrow: "Welcome",
+      heading: "Welcome to your website",
+      body: "This is placeholder text. Replace it with your own welcome message in config/customer-content.ts when your final copy is ready.",
       cta: {
         label: "Login",
         href: "/login",
@@ -86,16 +96,16 @@ export const customerContent: CustomerContent = {
     features: {
       items: [
         {
-          title: "Multi-tenant",
-          text: "Manage many businesses from one platform. Every record is scoped and isolated by business.",
+          title: "What we offer",
+          text: "Describe your main product or service here.",
         },
         {
-          title: "Secure by default",
-          text: "Server-side access control and role-based permissions protect your data at every layer.",
+          title: "Why choose us",
+          text: "Add a short, honest description of what makes your business a good choice.",
         },
         {
-          title: "Modular",
-          text: "Enable only the modules each business needs and grow the platform without rework.",
+          title: "Get in touch",
+          text: "Tell visitors how to reach you, and update your contact details in config.",
         },
       ],
     },
@@ -109,11 +119,12 @@ export const customerContent: CustomerContent = {
     cancelled: "Checkout cancelled — you have not been charged.",
   },
   contact: {
+    // Placeholders — fill in the customer's real contact details when known.
     email: "",
     phone: "",
     address: "",
   },
   footer: {
-    copyright: "© 2026 Moduls",
+    copyright: "© 2026 Your Business",
   },
 };
