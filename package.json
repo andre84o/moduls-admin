@@ -16,7 +16,8 @@
     "storage:ensure": "tsx scripts/ensure-storage-buckets.ts",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:tenant-isolation": "tsx scripts/test-media-tenant-isolation.ts"
+    "test:tenant-isolation": "tsx scripts/test-media-tenant-isolation.ts",
+    "stripe:verify-booking": "tsx scripts/stripe-verify-booking.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",
