@@ -4,6 +4,81 @@
  * tests/website-content.test.ts) and shared by the queries/actions layer.
  */
 
+import type { Section, SectionType } from "@/components/sections/types";
+
+/** The section discriminators the public renderer knows how to render. */
+const KNOWN_SECTION_TYPES = new Set<string>([
+  "siteHeader",
+  "hero",
+  "featureGrid",
+  "siteFooter",
+  "bookingBanner",
+] satisfies SectionType[]);
+
+/** A raw published section row as read from the database. */
+export type PublishedSectionRow = {
+  type: string;
+  publishedContent: unknown;
+};
+
+function isPlainObject(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null && !Array.isArray(v);
+}
+
+/**
+ * Whether a published section's content has the MINIMUM shape its renderer
+ * needs to render WITHOUT throwing. This is the safety gate that keeps a half-
+ * filled or empty publishedContent (e.g. `{}`) from crashing the public home
+ * page — the renderer reads `cta.href`, maps `nav`/`items`, etc., so those must
+ * exist with the right primitive shape. Anything that fails is skipped.
+ */
+function isRenderableSection(type: string, content: unknown): boolean {
+  if (!isPlainObject(content)) return false;
+  switch (type) {
+    case "siteHeader":
+      return isPlainObject(content.brand) && Array.isArray(content.nav);
+    case "hero":
+      return isPlainObject(content.cta);
+    case "featureGrid":
+      return Array.isArray(content.items);
+    case "siteFooter":
+      return isPlainObject(content.brand);
+    case "bookingBanner":
+      return true; // both messages optional; an empty object is renderable
+    default:
+      return false;
+  }
+}
+
+/**
+ * Map raw published sections into the `Section[]` shape the public renderer
+ * consumes. Pure (no I/O) so it is unit-testable. A section is skipped — never
+ * rendered — when its `type` is unknown, its publishedContent is null/missing,
+ * or its content lacks the minimum shape its renderer needs (see
+ * isRenderableSection). Skipping (rather than rendering) guarantees the public
+ * home page can never throw on bad content; the caller falls back to config
+ * when nothing renderable remains.
+ *
+ * Trust boundary: publishedContent is freeform JSON. The admin editor validates
+ * it into each section's prop shape before publishing and the guard above
+ * rejects anything unrenderable, so the cast to `Section` is the one place
+ * runtime JSON meets the typed renderer.
+ */
+export function mapPublishedSections(
+  rows: ReadonlyArray<PublishedSectionRow>,
+): Section[] {
+  const sections: Section[] = [];
+  for (const row of rows) {
+    if (!KNOWN_SECTION_TYPES.has(row.type)) continue;
+    if (!isRenderableSection(row.type, row.publishedContent)) continue;
+    sections.push({
+      type: row.type as SectionType,
+      props: row.publishedContent,
+    } as Section);
+  }
+  return sections;
+}
+
 /**
  * Normalise a page `key` to a stable, URL-safe, lowercase slug-like token.
  * Keys identify a page within a business and must be deterministic, so this
