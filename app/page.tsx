@@ -1,44 +1,25 @@
 import { Suspense } from "react";
-import { BookingBanner } from "./_components/booking-banner";
-import { SiteHeader } from "@/components/sections/SiteHeader";
-import { Hero } from "@/components/sections/Hero";
-import { FeatureGrid } from "@/components/sections/FeatureGrid";
-import { SiteFooter } from "@/components/sections/SiteFooter";
-import { customerContent } from "@/config/customer-content";
-import { customerNavigation } from "@/config/customer-navigation";
-import { customerTheme } from "@/config/customer-theme";
+import { SectionRenderer } from "@/components/sections/SectionRenderer";
+import { getHomeSections } from "@/config/home-sections";
+import type { Section } from "@/components/sections/types";
+
+// Booking-status overlay. Rendered through the registry like any other section,
+// but kept outside the linear content list because it needs a <Suspense>
+// boundary (it reads search params on the client).
+const bookingBannerSection: Section = { type: "bookingBanner", props: {} };
 
 export default function Home() {
-  const { brand, home, footer } = customerContent;
-  const accent = customerTheme.accent.text;
+  const sections = getHomeSections();
 
   return (
     <div className="flex flex-1 flex-col bg-white text-zinc-900">
       <Suspense fallback={null}>
-        <BookingBanner />
+        <SectionRenderer section={bookingBannerSection} />
       </Suspense>
 
-      <SiteHeader
-        brand={brand}
-        nav={customerNavigation.header}
-        accentClassName={accent}
-      />
-
-      <Hero
-        eyebrow={home.hero.eyebrow}
-        heading={home.hero.heading}
-        body={home.hero.body}
-        cta={home.hero.cta}
-        accentClassName={accent}
-      />
-
-      <FeatureGrid items={home.features.items} />
-
-      <SiteFooter
-        brand={brand}
-        copyright={footer.copyright}
-        accentClassName={accent}
-      />
+      {sections.map((section, index) => (
+        <SectionRenderer key={`${section.type}-${index}`} section={section} />
+      ))}
     </div>
   );
 }
