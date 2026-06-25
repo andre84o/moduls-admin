@@ -88,6 +88,27 @@ export async function getWebsitePages(): Promise<AdminWebsitePage[]> {
 }
 
 /**
+ * All website pages WITH their ordered sections — powers the admin editor,
+ * which loads the whole tree once and switches between pages client-side. Same
+ * tenant scoping and module gate as the other reads.
+ */
+export async function getWebsitePagesWithSections(): Promise<
+  AdminWebsitePageWithSections[]
+> {
+  const access = await requireBusinessAccess();
+  if (!(await websiteReadable(access))) return [];
+
+  const rows = await getPrisma().websitePage.findMany({
+    where: { businessId: access.businessId },
+    orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+    include: {
+      sections: { orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }] },
+    },
+  });
+  return rows.map((p) => ({ ...toPage(p), sections: p.sections.map(toSection) }));
+}
+
+/**
  * A single page (by stable key) with its ordered sections — for the editor.
  * Returns null when the page does not exist within the active business.
  */

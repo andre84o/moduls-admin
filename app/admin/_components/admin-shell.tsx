@@ -7,6 +7,7 @@ import {
   Home,
   CalendarDays,
   Users,
+  Globe,
   Settings,
   Menu,
   ArrowLeft,
@@ -30,16 +31,19 @@ import type {
   DashboardStats,
   BusinessOption,
 } from "../types";
+import type { AdminWebsitePageWithSections } from "@/modules/website/types";
 import { OverviewSection } from "./sections/overview";
 import { PropertiesSection } from "./sections/properties";
 import { BookingsSection } from "./sections/bookings";
 import { CustomersSection } from "./sections/customers";
+import { WebsiteSection } from "./sections/website";
 
 const sections = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
   { id: "properties", label: "Properties", icon: Home },
   { id: "bookings", label: "Bookings", icon: CalendarDays },
   { id: "customers", label: "CRM", icon: Users },
+  { id: "website", label: "Website", icon: Globe },
 ] as const;
 
 type SectionId = (typeof sections)[number]["id"];
@@ -49,6 +53,7 @@ const SECTION_MODULE: Partial<Record<SectionId, string>> = {
   properties: "RENTAL",
   bookings: "BOOKING",
   customers: "CRM",
+  website: "WEBSITE",
 };
 
 export function AdminShell({
@@ -56,6 +61,7 @@ export function AdminShell({
   properties,
   bookings,
   customers,
+  websitePages,
   businesses,
   activeBusinessId,
   enabledModules,
@@ -64,6 +70,7 @@ export function AdminShell({
   properties: AdminProperty[];
   bookings: AdminBooking[];
   customers: AdminCustomer[];
+  websitePages: AdminWebsitePageWithSections[];
   businesses: BusinessOption[];
   activeBusinessId: string | null;
   enabledModules: string[];
@@ -234,6 +241,9 @@ export function AdminShell({
             )}
             {effectiveActive === "customers" && (
               <CustomersSection customers={customers} />
+            )}
+            {effectiveActive === "website" && (
+              <WebsiteSection pages={websitePages} />
             )}
           </div>
         </main>
