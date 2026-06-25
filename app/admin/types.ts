@@ -46,11 +46,25 @@ export type AdminBooking = {
   id: string;
   guestName: string;
   guestEmail: string | null;
+  // Linked customer details (scoped to the same business via the relation).
+  customerName: string | null;
+  customerEmail: string | null;
+  customerPhone: string | null;
+  propertyTitle: string | null;
   startAt: string;
   endAt: string;
+  // Stay length + guest breakdown.
+  nights: number | null;
+  adults: number;
+  children: number;
+  infants: number;
+  pets: number;
   status: BookingStatus;
-  propertyTitle: string | null;
-  customerName: string | null;
+  // Payment snapshot. totalAmount is in MINOR units (öre/cents).
+  paid: boolean;
+  totalAmount: number | null;
+  currency: string;
+  stripeSessionId: string | null;
   notes: string | null;
 };
 

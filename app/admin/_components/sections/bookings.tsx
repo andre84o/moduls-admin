@@ -12,14 +12,6 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
   createBooking,
   setBookingStatus,
   deleteBooking,
@@ -43,11 +35,14 @@ const statusBadge: Record<
   REFUNDED: { label: "Refunded", variant: "outline" },
 };
 
-function fmt(iso: string): string {
-  return new Date(iso).toLocaleString(undefined, {
-    dateStyle: "medium",
-    timeStyle: "short",
-  });
+// Check-in / check-out are date-based, so show the date without a time.
+function fmtDate(iso: string): string {
+  return new Date(iso).toLocaleDateString(undefined, { dateStyle: "medium" });
+}
+
+// Money is stored in MINOR units (öre/cents); show major units + currency code.
+function money(minor: number, currency: string): string {
+  return `${(minor / 100).toFixed(2)} ${currency.toUpperCase()}`;
 }
 
 export function BookingsSection({
@@ -161,97 +156,138 @@ export function BookingsSection({
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>All bookings</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {bookings.length === 0 ? (
-            <p className="py-8 text-center text-sm text-muted-foreground">
-              No bookings yet.
-            </p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Guest</TableHead>
-                  <TableHead>Property</TableHead>
-                  <TableHead>Dates</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Action</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {bookings.map((b) => {
-                  const badge = statusBadge[b.status];
-                  return (
-                    <TableRow key={b.id}>
-                      <TableCell className="font-medium">
-                        {b.guestName}
-                        {b.guestEmail && (
-                          <span className="block text-xs text-muted-foreground">
-                            {b.guestEmail}
-                          </span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {b.propertyTitle ?? "—"}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {fmt(b.startAt)} → {fmt(b.endAt)}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={badge.variant}>{badge.label}</Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
-                          {b.status === "PENDING" && (
-                            <>
-                              <Button
-                                size="sm"
-                                disabled={isPending}
-                                onClick={() =>
-                                  startTransition(() =>
-                                    setBookingStatus(b.id, "CONFIRMED"),
-                                  )
-                                }
-                              >
-                                Confirm
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                disabled={isPending}
-                                onClick={() =>
-                                  startTransition(() =>
-                                    setBookingStatus(b.id, "DECLINED"),
-                                  )
-                                }
-                              >
-                                Decline
-                              </Button>
-                            </>
-                          )}
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            disabled={isPending}
-                            onClick={() =>
-                              startTransition(() => deleteBooking(b.id))
-                            }
-                          >
-                            Delete
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
+      <h2 className="mb-4 text-lg font-semibold tracking-tight">All bookings</h2>
+
+      {bookings.length === 0 ? (
+        <p className="py-8 text-center text-sm text-muted-foreground">
+          No bookings yet.
+        </p>
+      ) : (
+        <div className="space-y-4">
+          {bookings.map((b) => {
+            const badge = statusBadge[b.status];
+            const email = b.customerEmail ?? b.guestEmail;
+            return (
+              <Card key={b.id}>
+                <CardHeader className="flex-row items-start justify-between gap-3">
+                  <div>
+                    <CardTitle className="flex flex-wrap items-center gap-2">
+                      {b.propertyTitle ?? "Booking"}
+                      <Badge variant={badge.variant}>{badge.label}</Badge>
+                      <Badge variant={b.paid ? "default" : "outline"}>
+                        {b.paid ? "Paid" : "Unpaid"}
+                      </Badge>
+                    </CardTitle>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      {fmtDate(b.startAt)} → {fmtDate(b.endAt)}
+                      {b.nights != null
+                        ? ` · ${b.nights} night${b.nights === 1 ? "" : "s"}`
+                        : ""}
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    {b.status === "PENDING" && (
+                      <>
+                        <Button
+                          size="sm"
+                          disabled={isPending}
+                          onClick={() =>
+                            startTransition(() =>
+                              setBookingStatus(b.id, "CONFIRMED"),
+                            )
+                          }
+                        >
+                          Confirm
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={isPending}
+                          onClick={() =>
+                            startTransition(() =>
+                              setBookingStatus(b.id, "DECLINED"),
+                            )
+                          }
+                        >
+                          Decline
+                        </Button>
+                      </>
+                    )}
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      disabled={isPending}
+                      onClick={() => startTransition(() => deleteBooking(b.id))}
+                    >
+                      Delete
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid gap-4 sm:grid-cols-3">
+                    <div>
+                      <p className="text-xs font-medium text-muted-foreground">
+                        Customer
+                      </p>
+                      <p className="text-sm">{b.customerName ?? b.guestName}</p>
+                      {email && (
+                        <p className="text-xs break-all text-muted-foreground">
+                          {email}
+                        </p>
+                      )}
+                      {b.customerPhone && (
+                        <p className="text-xs text-muted-foreground">
+                          {b.customerPhone}
+                        </p>
+                      )}
+                    </div>
+
+                    <div>
+                      <p className="text-xs font-medium text-muted-foreground">
+                        Guests
+                      </p>
+                      <p className="text-sm">
+                        {b.adults} adult{b.adults === 1 ? "" : "s"} ·{" "}
+                        {b.children} child{b.children === 1 ? "" : "ren"} ·{" "}
+                        {b.infants} infant{b.infants === 1 ? "" : "s"} · {b.pets}{" "}
+                        pet{b.pets === 1 ? "" : "s"}
+                      </p>
+                    </div>
+
+                    <div>
+                      <p className="text-xs font-medium text-muted-foreground">
+                        Payment
+                      </p>
+                      <p className="text-sm">
+                        {b.totalAmount != null
+                          ? money(b.totalAmount, b.currency)
+                          : "—"}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {b.paid ? "Paid" : "Not paid"}
+                      </p>
+                      {b.stripeSessionId && (
+                        <p className="mt-0.5 break-all font-mono text-[11px] text-muted-foreground">
+                          {b.stripeSessionId}
+                        </p>
+                      )}
+                    </div>
+
+                    {b.notes && (
+                      <div className="sm:col-span-3">
+                        <p className="text-xs font-medium text-muted-foreground">
+                          Notes
+                        </p>
+                        <p className="text-sm">{b.notes}</p>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
