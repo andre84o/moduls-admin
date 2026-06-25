@@ -41,6 +41,8 @@ model Business {
   media        Media[]
   auditLogs    AuditLog[]
   notifications Notification[]
+  websitePages    WebsitePage[]
+  websiteSections WebsiteSection[]
 
   @@map("businesses")
 }
@@ -365,6 +367,67 @@ model Notification {
   @@map("notifications")
 }
 
+// ─── Website content (WEBSITE module) ─────────────────────────────────
+// Draft/published content model for a business's customer-facing website.
+// Both tables are business-owned (businessId) and tenant-scoped on every read
+// and write (see modules/website). Content is freeform JSON: `draftContent` is
+// the working copy the admin edits; `publishedContent` is the live copy the
+// public site renders. Publishing copies draft -> published; the public
+// renderer must only ever read `publishedContent` (see modules/website/actions.ts).
+
+/// A single page of a business website (e.g. home, about). Identified within a
+/// business by a stable `key`; an optional `slug` drives the public route.
+model WebsitePage {
+  id         String            @id @default(cuid())
+  businessId String
+  // Stable per-business identifier (e.g. "home", "about"). Renderers reference a
+  // page by key; it should not change once created. Unique within the business.
+  key        String
+  // Optional public route slug. NULLs are allowed and treated as distinct by
+  // Postgres, so many pages may have no slug yet.
+  slug       String?
+  title      String
+  status     WebsitePageStatus @default(DRAFT)
+  // Order of the page in navigation / listings.
+  sortOrder  Int               @default(0)
+  // Page-level content (meta, SEO, layout). Section content lives on sections.
+  draftContent     Json?
+  publishedContent Json?
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+
+  business Business         @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  sections WebsiteSection[]
+
+  @@unique([businessId, key])
+  @@unique([businessId, slug])
+  @@index([businessId])
+  @@map("website_pages")
+}
+
+/// A content block within a page. `type` is the variant key the renderer
+/// switches on (e.g. "hero", "gallery", "cta"). businessId is denormalised so
+/// every read/write can be tenant-scoped without a join through the page.
+model WebsiteSection {
+  id         String   @id @default(cuid())
+  businessId String
+  pageId     String
+  type       String
+  sortOrder  Int      @default(0)
+  isVisible  Boolean  @default(true)
+  draftContent     Json?
+  publishedContent Json?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  business Business    @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  page     WebsitePage @relation(fields: [pageId], references: [id], onDelete: Cascade)
+
+  @@index([businessId])
+  @@index([businessId, pageId])
+  @@map("website_sections")
+}
+
 // ─── Enums ────────────────────────────────────────────────────────────
 
 enum BusinessStatus {
@@ -397,6 +460,11 @@ enum PropertyStatus {
   DRAFT
   PUBLISHED
   ARCHIVED
+}
+
+enum WebsitePageStatus {
+  DRAFT
+  PUBLISHED
 }
 
 enum MediaKind {
