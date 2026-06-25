@@ -36,30 +36,29 @@ import type {
   AdminWebsiteSection,
   WebsiteContent,
 } from "@/modules/website/types";
+import {
+  KNOWN_SECTION_TYPES,
+  isKnownSectionType,
+  validateSectionContent,
+  SectionFields,
+  type SectionContent,
+} from "./website-section-fields";
 
 /**
- * Admin Website Content editor (Phase 8D).
+ * Admin Website Content editor.
  *
  * A CONTROLLED editor — not a free page builder. It lists the business's
  * website pages, the sections of the selected page, and edits each section's
- * DRAFT content as validated JSON. Every write goes through the existing
- * modules/website server actions, which resolve businessId server-side and
- * enforce the WEBSITE module guard — this component never sends a businessId.
+ * DRAFT content. Known section types get typed field editors (Phase 8E); a JSON
+ * textarea remains an advanced fallback and the only editor for unknown types.
+ * Every write goes through the existing modules/website server actions, which
+ * resolve businessId server-side and enforce the WEBSITE module guard — this
+ * component never sends a businessId.
  *
  * Section `type` is chosen from the known public section registry so authors
  * cannot invent arbitrary types. Publishing copies draft -> published via the
  * existing publish actions; public rendering is unchanged in this phase.
  */
-
-// Known section types the editor can add. Mirrors the public section registry
-// (components/sections/types.ts) — keep this list in sync when adding one.
-const KNOWN_SECTION_TYPES = [
-  "siteHeader",
-  "hero",
-  "featureGrid",
-  "siteFooter",
-  "bookingBanner",
-] as const;
 
 const pageStatusVariant: Record<"PUBLISHED" | "DRAFT", "default" | "secondary"> = {
   PUBLISHED: "default",
@@ -332,33 +331,105 @@ export function WebsiteSection({
   );
 }
 
+// Coerce stored draft content into a plain object for the typed field editors.
+function asContentObject(v: WebsiteContent): SectionContent {
+  return v && typeof v === "object" && !Array.isArray(v)
+    ? (v as SectionContent)
+    : {};
+}
+
 /**
- * One section's draft editor: a validated JSON textarea plus Save draft,
- * Publish and Hide/Show. All writes call the tenant-scoped server actions.
+ * One section's draft editor. Known section types render typed field editors
+ * (Title, Text, Button link, …); an "Advanced (JSON)" toggle exposes the raw
+ * JSON, which is also the only editor for unknown types. Save validates the
+ * required fields (or the JSON) and writes via the tenant-scoped server action.
  */
 function SectionEditor({ section }: { section: AdminWebsiteSection }) {
-  const [draft, setDraft] = useState(prettyJson(section.draftContent));
+  const known = isKnownSectionType(section.type);
+  const [content, setContent] = useState<SectionContent>(() =>
+    asContentObject(section.draftContent),
+  );
+  // Advanced JSON mode: always on for unknown types, opt-in for known types.
+  const [advanced, setAdvanced] = useState(!known);
+  const [jsonText, setJsonText] = useState(() => prettyJson(section.draftContent));
+  const [jsonError, setJsonError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
+  const showJson = advanced;
   const unpublished = !sameContent(
     section.draftContent,
     section.publishedContent,
   );
 
-  function saveDraft() {
-    let parsed: WebsiteContent;
-    try {
-      parsed = draft.trim() === "" ? {} : (JSON.parse(draft) as WebsiteContent);
-    } catch {
-      setError("Invalid JSON — fix the syntax and try again.");
+  function toggleAdvanced() {
+    if (!advanced) {
+      // Entering advanced: seed the JSON from the current typed content.
+      setJsonText(JSON.stringify(content, null, 2));
+      setJsonError(null);
+      setError(null);
+      setAdvanced(true);
       return;
+    }
+    // Leaving advanced: adopt the JSON into typed content. Block the switch
+    // (keep JSON open) when the JSON is invalid OR is not a plain object, since
+    // the typed fields can only represent an object — never silently drop it.
+    let parsed: unknown;
+    try {
+      parsed = jsonText.trim() === "" ? {} : JSON.parse(jsonText);
+    } catch {
+      setJsonError("Invalid JSON — fix it before switching to fields.");
+      return;
+    }
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      setJsonError("Content must be a JSON object to edit as fields.");
+      return;
+    }
+    setContent(parsed as SectionContent);
+    setJsonError(null);
+    setError(null);
+    setAdvanced(false);
+  }
+
+  function onJsonChange(text: string) {
+    setJsonText(text);
+    if (text.trim() === "") {
+      setJsonError(null);
+      return;
+    }
+    try {
+      JSON.parse(text);
+      setJsonError(null);
+    } catch {
+      setJsonError("Invalid JSON — fix the syntax and try again.");
+    }
+  }
+
+  function saveDraft() {
+    let toSave: WebsiteContent;
+    if (showJson) {
+      try {
+        toSave =
+          jsonText.trim() === "" ? {} : (JSON.parse(jsonText) as WebsiteContent);
+      } catch {
+        setError("Invalid JSON — fix the syntax and try again.");
+        return;
+      }
+    } else {
+      const invalid = validateSectionContent(section.type, content);
+      if (invalid) {
+        setError(invalid);
+        return;
+      }
+      // Field editors only ever write JSON-serializable values (strings,
+      // booleans, arrays of objects); safe to treat as WebsiteContent.
+      toSave = content as WebsiteContent;
     }
     setError(null);
     startTransition(async () => {
       const res = await updateWebsiteSectionDraft({
         id: section.id,
-        draftContent: parsed,
+        draftContent: toSave,
       });
       if (res?.error) setError(res.error);
     });
@@ -392,6 +463,16 @@ function SectionEditor({ section }: { section: AdminWebsiteSection }) {
           )}
         </div>
         <div className="flex gap-2">
+          {known ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={isPending}
+              onClick={toggleAdvanced}
+            >
+              {advanced ? "Fields" : "Advanced (JSON)"}
+            </Button>
+          ) : null}
           <Button
             variant="outline"
             size="sm"
@@ -428,16 +509,31 @@ function SectionEditor({ section }: { section: AdminWebsiteSection }) {
         </div>
       </div>
 
-      <Label htmlFor={`draft-${section.id}`} className="text-xs">
-        Draft content (JSON)
-      </Label>
-      <Textarea
-        id={`draft-${section.id}`}
-        value={draft}
-        onChange={(e) => setDraft(e.target.value)}
-        spellCheck={false}
-        className="mt-1.5 min-h-40 font-mono text-xs"
-      />
+      {showJson ? (
+        <>
+          <Label htmlFor={`draft-${section.id}`} className="text-xs">
+            Draft content (JSON){known ? " — advanced" : ""}
+          </Label>
+          <Textarea
+            id={`draft-${section.id}`}
+            value={jsonText}
+            onChange={(e) => onJsonChange(e.target.value)}
+            spellCheck={false}
+            className="mt-1.5 min-h-40 font-mono text-xs"
+          />
+          {jsonError ? (
+            <p className="mt-2 text-sm text-destructive">{jsonError}</p>
+          ) : null}
+        </>
+      ) : (
+        <SectionFields
+          id={`sf-${section.id}`}
+          type={section.type}
+          content={content}
+          onChange={setContent}
+        />
+      )}
+
       {error ? (
         <p className="mt-2 text-sm text-destructive">{error}</p>
       ) : null}
