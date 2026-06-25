@@ -60,6 +60,16 @@ describe("website public home — mapPublishedSections", () => {
     expect(mapPublishedSections(rows)).toEqual([]);
   });
 
+  it("skips arrays containing null/primitive elements that would throw in .map", () => {
+    // nav/items are mapped and field-accessed, so a null element must be rejected.
+    const rows = [
+      { type: "siteHeader", publishedContent: { brand: { primary: "A", accent: "B" }, nav: [null] } },
+      { type: "featureGrid", publishedContent: { items: [null] } },
+      { type: "featureGrid", publishedContent: { items: ["x", 1] } },
+    ];
+    expect(mapPublishedSections(rows)).toEqual([]);
+  });
+
   it("treats bookingBanner with an empty object as renderable (messages optional)", () => {
     const out = mapPublishedSections([
       { type: "bookingBanner", publishedContent: {} },

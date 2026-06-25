@@ -36,11 +36,20 @@ function isRenderableSection(type: string, content: unknown): boolean {
   if (!isPlainObject(content)) return false;
   switch (type) {
     case "siteHeader":
-      return isPlainObject(content.brand) && Array.isArray(content.nav);
+      // nav is mapped and each item is field-accessed (link.href/label), so
+      // every element must be an object — a null/primitive element would throw.
+      return (
+        isPlainObject(content.brand) &&
+        Array.isArray(content.nav) &&
+        content.nav.every(isPlainObject)
+      );
     case "hero":
       return isPlainObject(content.cta);
     case "featureGrid":
-      return Array.isArray(content.items);
+      // items are mapped and field-accessed (item.title/text); same rule.
+      return (
+        Array.isArray(content.items) && content.items.every(isPlainObject)
+      );
     case "siteFooter":
       return isPlainObject(content.brand);
     case "bookingBanner":
