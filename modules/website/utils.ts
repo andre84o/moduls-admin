@@ -5,6 +5,7 @@
  */
 
 import type { Section, SectionType } from "@/components/sections/types";
+import type { WebsiteContent } from "./types";
 
 /** The section discriminators the public renderer knows how to render. */
 const KNOWN_SECTION_TYPES = new Set<string>([
@@ -124,4 +125,37 @@ export function nextSortOrder(existing: ReadonlyArray<number>): number {
     if (Number.isFinite(n) && n > max) max = n;
   }
   return max + 1;
+}
+
+/** A default section to seed: its type and the JSON content to store. */
+export type SeedSection = { type: string; content: WebsiteContent };
+
+/** A planned section creation with the sortOrder it should be inserted at. */
+export type PlannedSection = SeedSection & { sortOrder: number };
+
+/**
+ * CREATE-MISSING-ONLY plan for seeding default sections onto a page. Given the
+ * config sections (the desired defaults) and the section rows that already
+ * exist on the page, returns only the sections whose `type` is not yet present,
+ * each assigned a sortOrder appended after the current order. Existing sections
+ * are never included, so the caller never overwrites their content. Matching is
+ * by `type`: a page is considered to already have, say, a "hero" if any hero
+ * section exists, so re-running only restores genuinely missing defaults.
+ *
+ * Pure (no I/O) so it is unit-testable without a database.
+ */
+export function planMissingSections(
+  configSections: ReadonlyArray<SeedSection>,
+  existing: ReadonlyArray<{ type: string; sortOrder: number }>,
+): PlannedSection[] {
+  const present = new Set(existing.map((s) => s.type));
+  let order = nextSortOrder(existing.map((s) => s.sortOrder));
+  const plan: PlannedSection[] = [];
+  for (const c of configSections) {
+    if (present.has(c.type)) continue;
+    present.add(c.type); // guard against duplicate types within config
+    plan.push({ type: c.type, content: c.content, sortOrder: order });
+    order += 1;
+  }
+  return plan;
 }

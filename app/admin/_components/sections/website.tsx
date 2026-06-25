@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
-import { Plus, Trash2, Eye, EyeOff, Save, Send } from "lucide-react";
+import { Plus, Trash2, Eye, EyeOff, Save, Send, Sparkles } from "lucide-react";
 import {
   Card,
   CardContent,
@@ -30,6 +30,7 @@ import {
   setWebsiteSectionVisibility,
   publishWebsiteSection,
   deleteWebsiteSection,
+  syncDefaultHomeWebsiteContent,
 } from "@/modules/website/actions";
 import type {
   AdminWebsitePageWithSections,
@@ -89,6 +90,9 @@ export function WebsiteSection({
   // page panel (add section / publish page), shown next to those controls.
   const [pageError, setPageError] = useState<string | null>(null);
   const [editorError, setEditorError] = useState<string | null>(null);
+  // Result/error of the "default Home content" create-missing-only sync.
+  const [seedResult, setSeedResult] = useState<string | null>(null);
+  const [seedError, setSeedError] = useState<string | null>(null);
 
   // Keep the selection valid as the page list changes after revalidation.
   const selected =
@@ -111,6 +115,25 @@ export function WebsiteSection({
         if (res?.id) setSelectedId(res.id);
         newPageForm.current?.reset();
       }
+    });
+  }
+
+  function handleSyncHome() {
+    setSeedError(null);
+    setSeedResult(null);
+    startTransition(async () => {
+      const res = await syncDefaultHomeWebsiteContent();
+      if (res.error) {
+        setSeedError(res.error);
+        return;
+      }
+      setSeedResult(
+        [
+          res.createdPage ? "Created Home page." : "Home page already existed.",
+          `Created ${res.createdSections} section${res.createdSections === 1 ? "" : "s"}.`,
+          `Skipped ${res.skippedSections} existing.`,
+        ].join(" "),
+      );
     });
   }
 
@@ -138,6 +161,34 @@ export function WebsiteSection({
           as a draft; publish to make them live.
         </p>
       </header>
+
+      {/* Default Home content — create-missing-only seed from config */}
+      <Card className="mb-8">
+        <CardHeader>
+          <CardTitle>Default content</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="mb-4 text-sm text-muted-foreground">
+            Create the Home page and its default sections from the built-in
+            template. This only adds what is missing — it never overwrites
+            existing pages or sections.
+          </p>
+          <Button
+            variant="outline"
+            disabled={isPending}
+            onClick={handleSyncHome}
+          >
+            <Sparkles className="size-4" />
+            {isPending ? "Working…" : "Create default Home content"}
+          </Button>
+          {seedResult ? (
+            <p className="mt-2 text-sm text-muted-foreground">{seedResult}</p>
+          ) : null}
+          {seedError ? (
+            <p className="mt-2 text-sm text-destructive">{seedError}</p>
+          ) : null}
+        </CardContent>
+      </Card>
 
       {/* New page */}
       <Card className="mb-8">

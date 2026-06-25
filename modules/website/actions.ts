@@ -5,8 +5,9 @@ import { Prisma } from "@/app/generated/prisma/client";
 import { getPrisma } from "@/lib/prisma";
 import { requireModule } from "@/lib/modules";
 import { writeAuditLog } from "@/lib/audit";
-import { normalizeKey, normalizeSlug, nextSortOrder } from "./utils";
+import { normalizeKey, normalizeSlug, nextSortOrder, planMissingSections } from "./utils";
 import type { WebsiteContent } from "./types";
+import { getHomeSections } from "@/config/home-sections";
 
 /**
  * Mutating server actions for the Website content module.
@@ -386,4 +387,140 @@ export async function deleteWebsiteSection(id: string): Promise<void> {
     entityId: id,
   });
   revalidatePath("/admin");
+}
+
+// ─── Seeding ──────────────────────────────────────────────────────────
+
+export type SyncHomeResult = {
+  createdPage: boolean;
+  createdSections: number;
+  skippedSections: number;
+  error?: string;
+};
+
+/**
+ * CREATE-MISSING-ONLY seed of the default Home page from config. Initializes the
+ * WebsitePage with key "home" and its default sections from getHomeSections() so
+ * the admin editor starts with editable content. Each config section's props are
+ * stored as BOTH draftContent and publishedContent on first creation.
+ *
+ * Safety:
+ *  - Never overwrites: an existing home page keeps its status/content untouched;
+ *    only sections whose `type` is genuinely missing are created (see
+ *    planMissingSections). Re-running only restores missing defaults.
+ *  - No deletes. Writes only website_pages / website_sections, scoped to the
+ *    server-resolved businessId (never trusted from the client). WEBSITE module
+ *    guard enforced via requireModule. Page create + section creates run in one
+ *    transaction so a page is never left half-seeded.
+ *  - A freshly created page is PUBLISHED so its seeded publishedContent goes
+ *    live — output is identical to the config the public home already renders.
+ */
+export async function syncDefaultHomeWebsiteContent(): Promise<SyncHomeResult> {
+  const access = await requireModule("WEBSITE", { allowedRoles: [...WEBSITE_WRITER_ROLES] });
+  if (access.isDemo) {
+    return { createdPage: false, createdSections: 0, skippedSections: 0 };
+  }
+
+  // Config is the seed source. props are plain JSON (Phase 8F confirmed the
+  // shape matches each section's renderer props and the editor's field shape).
+  const configSections = getHomeSections().map((s) => ({
+    type: s.type,
+    content: s.props as WebsiteContent,
+  }));
+
+  const prisma = getPrisma();
+
+  try {
+    const result = await prisma.$transaction(async (tx) => {
+      // Resolve the home page within THIS business, with its existing sections.
+      const existingPage = await tx.websitePage.findFirst({
+        where: { businessId: access.businessId, key: "home" },
+        select: {
+          id: true,
+          sections: { select: { type: true, sortOrder: true } },
+        },
+      });
+
+      let pageId: string;
+      let createdPage = false;
+      let existingSections: { type: string; sortOrder: number }[];
+
+      if (existingPage) {
+        pageId = existingPage.id;
+        existingSections = existingPage.sections;
+      } else {
+        // Append the new page after any existing pages in this business.
+        const orders = await tx.websitePage.findMany({
+          where: { businessId: access.businessId },
+          select: { sortOrder: true },
+        });
+        const created = await tx.websitePage.create({
+          data: {
+            businessId: access.businessId,
+            key: "home",
+            title: "Home",
+            status: "PUBLISHED",
+            sortOrder: nextSortOrder(orders.map((o) => o.sortOrder)),
+          },
+          select: { id: true },
+        });
+        pageId = created.id;
+        createdPage = true;
+        existingSections = [];
+      }
+
+      const plan = planMissingSections(configSections, existingSections);
+      for (const s of plan) {
+        await tx.websiteSection.create({
+          data: {
+            businessId: access.businessId,
+            pageId,
+            type: s.type,
+            sortOrder: s.sortOrder,
+            isVisible: true,
+            draftContent: toJsonInput(s.content),
+            publishedContent: toJsonInput(s.content),
+          },
+        });
+      }
+
+      return {
+        pageId,
+        createdPage,
+        createdSections: plan.length,
+        skippedSections: configSections.length - plan.length,
+      };
+    });
+
+    await writeAuditLog({
+      businessId: access.businessId,
+      userId: access.userId,
+      action: "website_home.seeded",
+      entityType: "WebsitePage",
+      entityId: result.pageId,
+      metadata: {
+        createdPage: result.createdPage,
+        createdSections: result.createdSections,
+        skippedSections: result.skippedSections,
+      },
+    });
+    revalidatePath("/admin");
+    return {
+      createdPage: result.createdPage,
+      createdSections: result.createdSections,
+      skippedSections: result.skippedSections,
+    };
+  } catch (e) {
+    // Concurrent seed created the home page first (unique businessId+key) — not
+    // an error worth surfacing as a crash; report it cleanly.
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+      return {
+        createdPage: false,
+        createdSections: 0,
+        skippedSections: configSections.length,
+        error: "Home content already exists — nothing to create.",
+      };
+    }
+    throw e;
+  }
 }
