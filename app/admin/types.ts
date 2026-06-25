@@ -26,6 +26,19 @@ export type AdminProperty = {
   price: number | null;
   bedrooms: number | null;
   status: PropertyStatus;
+  // RENTAL booking settings. Money fields are in MINOR units (öre/cents).
+  pricePerNight: number | null;
+  cleaningFee: number | null;
+  currency: string;
+  minNights: number;
+  maxGuests: number | null;
+  maxAdults: number | null;
+  maxChildren: number | null;
+  maxInfants: number | null;
+  maxPets: number | null;
+  petsAllowed: boolean;
+  bufferDaysAfterCheckout: number;
+  cancellationDeadlineDays: number | null;
   images: AdminMediaItem[];
 };
 

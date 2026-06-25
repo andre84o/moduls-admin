@@ -22,6 +22,57 @@ import type {
 
 // ─── Properties (bostäder) ────────────────────────────────────────────
 
+// Booking money is stored in MINOR units (öre/cents). The admin enters major
+// units (e.g. 320.50), so we round to the nearest minor unit. Empty -> null.
+function parseMinorMoney(raw: FormDataEntryValue | null): number | null {
+  const s = String(raw ?? "").trim();
+  if (!s) return null;
+  const n = Number(s);
+  if (!Number.isFinite(n) || n < 0) return null;
+  return Math.round(n * 100);
+}
+
+// Non-negative integer or null when empty/invalid. Used for counts and days.
+function parseNonNegInt(raw: FormDataEntryValue | null): number | null {
+  const s = String(raw ?? "").trim();
+  if (!s) return null;
+  const n = Math.floor(Number(s));
+  if (!Number.isFinite(n) || n < 0) return null;
+  return n;
+}
+
+// Currency is a lowercase 3-letter code (matches the schema default "sek").
+function parseCurrency(raw: FormDataEntryValue | null): string {
+  const s = String(raw ?? "").trim().toLowerCase();
+  return /^[a-z]{3}$/.test(s) ? s : "sek";
+}
+
+/**
+ * Read + validate the RENTAL booking settings from a property form. All money
+ * is converted to minor units and every value is clamped server-side so it
+ * matches what the booking checkout (the source of truth) expects.
+ */
+function readBookingSettings(formData: FormData) {
+  return {
+    pricePerNight: parseMinorMoney(formData.get("pricePerNight")),
+    cleaningFee: parseMinorMoney(formData.get("cleaningFee")) ?? 0,
+    currency: parseCurrency(formData.get("currency")),
+    minNights: Math.max(1, parseNonNegInt(formData.get("minNights")) ?? 1),
+    maxGuests: parseNonNegInt(formData.get("maxGuests")),
+    maxAdults: parseNonNegInt(formData.get("maxAdults")),
+    maxChildren: parseNonNegInt(formData.get("maxChildren")),
+    maxInfants: parseNonNegInt(formData.get("maxInfants")),
+    maxPets: parseNonNegInt(formData.get("maxPets")) ?? 0,
+    // Checkbox: present when checked, absent otherwise (presence = true).
+    petsAllowed: formData.get("petsAllowed") != null,
+    bufferDaysAfterCheckout:
+      parseNonNegInt(formData.get("bufferDaysAfterCheckout")) ?? 0,
+    cancellationDeadlineDays: parseNonNegInt(
+      formData.get("cancellationDeadlineDays"),
+    ),
+  };
+}
+
 export async function createProperty(formData: FormData) {
   const access = await requireModule("RENTAL", { allowedRoles: ["OWNER", "ADMIN"] });
 
@@ -31,6 +82,7 @@ export async function createProperty(formData: FormData) {
 
   const price = String(formData.get("price") ?? "");
   const bedrooms = String(formData.get("bedrooms") ?? "");
+  const booking = readBookingSettings(formData);
 
   if (access.isDemo) return;
 
@@ -41,6 +93,7 @@ export async function createProperty(formData: FormData) {
       location,
       price: price ? Number(price) : null,
       bedrooms: bedrooms ? Number(bedrooms) : null,
+      ...booking,
     },
   });
 
@@ -50,6 +103,44 @@ export async function createProperty(formData: FormData) {
     action: "property.created",
     entityType: "Property",
     entityId: created.id,
+  });
+  revalidatePath("/admin");
+}
+
+export async function updateProperty(formData: FormData) {
+  const access = await requireModule("RENTAL", { allowedRoles: ["OWNER", "ADMIN"] });
+
+  const id = String(formData.get("id") ?? "").trim();
+  if (!id) return;
+
+  const title = String(formData.get("title") ?? "").trim();
+  const location = String(formData.get("location") ?? "").trim();
+  if (!title || !location) return;
+
+  const price = String(formData.get("price") ?? "");
+  const bedrooms = String(formData.get("bedrooms") ?? "");
+  const booking = readBookingSettings(formData);
+
+  if (access.isDemo) return;
+
+  // updateMany scoped by businessId so another business's row can't be touched.
+  await getPrisma().property.updateMany({
+    where: { id, businessId: access.businessId },
+    data: {
+      title,
+      location,
+      price: price ? Number(price) : null,
+      bedrooms: bedrooms ? Number(bedrooms) : null,
+      ...booking,
+    },
+  });
+
+  await writeAuditLog({
+    businessId: access.businessId,
+    userId: access.userId,
+    action: "property.updated",
+    entityType: "Property",
+    entityId: id,
   });
   revalidatePath("/admin");
 }

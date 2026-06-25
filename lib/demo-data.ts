@@ -16,6 +16,7 @@ function at(dayOffset: number, hour: number): Date {
   return d;
 }
 
+// Booking money below is in MINOR units (öre/cents), matching the schema.
 export const demoProperties: AdminProperty[] = [
   {
     id: "demo-p1",
@@ -24,6 +25,18 @@ export const demoProperties: AdminProperty[] = [
     price: 320,
     bedrooms: 3,
     status: "PUBLISHED",
+    pricePerNight: 32000,
+    cleaningFee: 5000,
+    currency: "eur",
+    minNights: 3,
+    maxGuests: 6,
+    maxAdults: 4,
+    maxChildren: 2,
+    maxInfants: 1,
+    maxPets: 1,
+    petsAllowed: true,
+    bufferDaysAfterCheckout: 1,
+    cancellationDeadlineDays: 7,
     images: [],
   },
   {
@@ -33,6 +46,18 @@ export const demoProperties: AdminProperty[] = [
     price: 410,
     bedrooms: 4,
     status: "PUBLISHED",
+    pricePerNight: 41000,
+    cleaningFee: 7500,
+    currency: "eur",
+    minNights: 5,
+    maxGuests: 8,
+    maxAdults: 6,
+    maxChildren: 2,
+    maxInfants: 2,
+    maxPets: 0,
+    petsAllowed: false,
+    bufferDaysAfterCheckout: 1,
+    cancellationDeadlineDays: 14,
     images: [],
   },
   {
@@ -42,6 +67,18 @@ export const demoProperties: AdminProperty[] = [
     price: 150,
     bedrooms: 1,
     status: "DRAFT",
+    pricePerNight: 15000,
+    cleaningFee: 3000,
+    currency: "eur",
+    minNights: 2,
+    maxGuests: 2,
+    maxAdults: 2,
+    maxChildren: 0,
+    maxInfants: 0,
+    maxPets: 0,
+    petsAllowed: false,
+    bufferDaysAfterCheckout: 0,
+    cancellationDeadlineDays: null,
     images: [],
   },
 ];

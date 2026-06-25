@@ -70,6 +70,18 @@ export async function getProperties(): Promise<AdminProperty[]> {
     price: p.price,
     bedrooms: p.bedrooms,
     status: p.status,
+    pricePerNight: p.pricePerNight,
+    cleaningFee: p.cleaningFee,
+    currency: p.currency,
+    minNights: p.minNights,
+    maxGuests: p.maxGuests,
+    maxAdults: p.maxAdults,
+    maxChildren: p.maxChildren,
+    maxInfants: p.maxInfants,
+    maxPets: p.maxPets,
+    petsAllowed: p.petsAllowed,
+    bufferDaysAfterCheckout: p.bufferDaysAfterCheckout,
+    cancellationDeadlineDays: p.cancellationDeadlineDays,
     // Property images are website-facing (PUBLIC) so they always carry a url.
     images: p.media
       .filter((m) => m.url)
