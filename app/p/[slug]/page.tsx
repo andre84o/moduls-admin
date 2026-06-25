@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { getPublicProperty } from "@/lib/public-property";
 import { getReservedRanges } from "@/lib/booking-availability";
+import { customerContent } from "@/config/customer-content";
 import { RentalBookingWidget } from "./_components/RentalBookingWidget";
 
 export default async function PropertyBookingPage({
@@ -28,7 +29,9 @@ export default async function PropertyBookingPage({
         <p className="mt-1 text-muted-foreground">{property.location}</p>
         <p className="mt-2 text-lg">
           <span className="font-semibold">{money(property.pricePerNight)}</span>{" "}
-          <span className="text-sm text-muted-foreground">/ night</span>
+          <span className="text-sm text-muted-foreground">
+            {customerContent.property.perNightLabel}
+          </span>
         </p>
         {property.description ? (
           <p className="mt-4 max-w-2xl text-zinc-600">{property.description}</p>
