@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
-const MODULES = ["RENTAL", "BOOKING", "CRM"] as const;
+const MODULES = ["WEBSITE", "RENTAL", "BOOKING", "CRM"] as const;
 
 export default async function SuperModulesPage() {
   const businesses = await getAllBusinessesWithModules();

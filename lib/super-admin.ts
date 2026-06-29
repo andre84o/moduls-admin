@@ -10,16 +10,16 @@ import type { ProjectType } from "@/app/generated/prisma/enums";
  * design — this is the documented exception to per-business tenant scoping.
  */
 
-const MANAGED_MODULES: ProjectType[] = ["RENTAL", "BOOKING", "CRM"];
+const MANAGED_MODULES: ProjectType[] = ["WEBSITE", "RENTAL", "BOOKING", "CRM"];
 
 export type BusinessModules = {
   id: string;
   name: string;
   slug: string;
-  modules: { RENTAL: boolean; BOOKING: boolean; CRM: boolean };
+  modules: { WEBSITE: boolean; RENTAL: boolean; BOOKING: boolean; CRM: boolean };
 };
 
-/** Every business with its RENTAL/BOOKING/CRM enablement (ACTIVE Project = on). */
+/** Every business with its WEBSITE/RENTAL/BOOKING/CRM enablement (ACTIVE Project = on). */
 export async function getAllBusinessesWithModules(): Promise<BusinessModules[]> {
   const user = await requireSuperAdmin();
 
@@ -27,9 +27,9 @@ export async function getAllBusinessesWithModules(): Promise<BusinessModules[]> 
     // Demo: a sample list so the page is browsable without a database.
     return [
       { id: DEMO_BUSINESS_ID, name: "Demo Estates", slug: "demo",
-        modules: { RENTAL: true, BOOKING: true, CRM: false } },
+        modules: { WEBSITE: false, RENTAL: true, BOOKING: true, CRM: false } },
       { id: "demo-business-2", name: "Acme Services", slug: "acme",
-        modules: { RENTAL: false, BOOKING: true, CRM: true } },
+        modules: { WEBSITE: true, RENTAL: false, BOOKING: true, CRM: true } },
     ];
   }
 
@@ -48,7 +48,12 @@ export async function getAllBusinessesWithModules(): Promise<BusinessModules[]> 
       id: b.id,
       name: b.name,
       slug: b.slug,
-      modules: { RENTAL: active("RENTAL"), BOOKING: active("BOOKING"), CRM: active("CRM") },
+      modules: {
+        WEBSITE: active("WEBSITE"),
+        RENTAL: active("RENTAL"),
+        BOOKING: active("BOOKING"),
+        CRM: active("CRM"),
+      },
     };
   });
 }

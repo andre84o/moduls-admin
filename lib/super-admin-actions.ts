@@ -8,12 +8,13 @@ import { isDemoMode } from "./config";
 import type { ProjectType } from "@/app/generated/prisma/enums";
 
 /**
- * Toggle an optional module (RENTAL / BOOKING / CRM) for a business. SUPER_ADMIN
- * only. Enabled = an ACTIVE Project row of that type exists; disabling sets the
- * row(s) to DISABLED and NEVER deletes. Media is core and not toggleable.
+ * Toggle an optional module (WEBSITE / RENTAL / BOOKING / CRM) for a business.
+ * SUPER_ADMIN only. Enabled = an ACTIVE Project row of that type exists;
+ * disabling sets the row(s) to DISABLED and NEVER deletes. Media is core and not
+ * toggleable.
  */
 
-const TOGGLEABLE = new Set<ProjectType>(["RENTAL", "BOOKING", "CRM"]);
+const TOGGLEABLE = new Set<ProjectType>(["WEBSITE", "RENTAL", "BOOKING", "CRM"]);
 
 export async function setModuleEnabled(formData: FormData) {
   const user = await requireSuperAdmin();
