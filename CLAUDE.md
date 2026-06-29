@@ -1056,3 +1056,42 @@ If any item fails, Claude must fix it before saying the task is complete.
 ## Footer rule
 
 `Design & development by Intenzze` must not be removed from the footer.
+
+
+## Website page building rules
+
+Website content is core, not an optional module.
+
+Every business must be able to edit website text/content by default.
+
+When building public website pages:
+
+* Do not hardcode customer-facing text directly in page JSX.
+* Build pages from reusable section components.
+* Keep layout, spacing, styling, responsive design, and className inside the component.
+* Put editable content in typed content objects/props.
+* Customer-editable content includes:
+
+  * headings
+  * paragraphs
+  * button text
+  * button links
+  * feature card text
+  * footer text
+  * navigation labels
+  * image URLs when supported
+* Customer-editable content must be compatible with WebsiteSection draftContent/publishedContent.
+* Public pages should render through SectionRenderer when possible.
+* Public pages must read publishedContent only.
+* Never expose draftContent publicly.
+* If published website content does not exist, use the config fallback.
+* Do not build a free page builder.
+* Do not expose className, CSS, layout containers, spacing, or raw component structure to the customer.
+* New sections must have:
+
+  * a section component
+  * a typed content shape
+  * a registry entry
+  * a safe admin editor later if customer-editable
+* WEBSITE must not be treated as an optional module.
+* Optional modules are things like BOOKING, CRM, RENTAL, and PAYMENTS.
