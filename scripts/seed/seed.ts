@@ -15,9 +15,9 @@ const prisma = new PrismaClient({ adapter });
 async function main() {
   const business = await prisma.business.upsert({
     where: { slug: "demo" },
-    update: {},
+    update: { name: "Demo-projekt" },
     create: {
-      name: "Demo Estates",
+      name: "Demo-projekt",
       slug: "demo",
       email: "owner@demo.local",
     },
