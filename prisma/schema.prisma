@@ -43,6 +43,8 @@ model Business {
   notifications Notification[]
   websitePages    WebsitePage[]
   websiteSections WebsiteSection[]
+  googleReviewSettings GoogleReviewSettings?
+  googleReviewCaches   GoogleReviewCache[]
 
   @@map("businesses")
 }
@@ -426,6 +428,58 @@ model WebsiteSection {
   @@index([businessId])
   @@index([businessId, pageId])
   @@map("website_sections")
+}
+
+// ─── Google Reviews (Website integration) ─────────────────────────────
+// Reusable SaaS integration: each business may show Google reviews on its
+// public website. Settings + cache are business-owned (businessId) and must be
+// tenant-scoped on every read/write (see CLAUDE.md). This is NOT a ProjectType
+// and NOT a Super Admin toggle — it is a Website/admin integration feature.
+//
+// IMPORTANT: the Google Places API key is a SERVER-ONLY env var and is never
+// stored here. These tables hold only WHICH place to show (config) and the
+// cached review payload the public site will eventually read — never live API
+// calls from the public route, never the API key.
+
+/// Per-business Google Reviews configuration. Exactly one row per business.
+model GoogleReviewSettings {
+  id           String    @id @default(cuid())
+  businessId   String    @unique
+  enabled      Boolean   @default(false)
+  // Google Place ID to pull reviews for. Admin-entered config (not a secret).
+  placeId      String?
+  // Optional display filters applied when rendering cached reviews.
+  minRating    Int?
+  maxCount     Int       @default(6)
+  // Bookkeeping for the (future) sync action — never affects tenant scoping.
+  lastSyncedAt DateTime?
+  lastError    String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([businessId])
+  @@map("google_review_settings")
+}
+
+/// Cached Google reviews payload fetched server-side. The public site reads
+/// THIS (cache only), never the live Google API. One cache row per
+/// (business, place); `payload` holds the normalized, serializable review data.
+model GoogleReviewCache {
+  id         String   @id @default(cuid())
+  businessId String
+  placeId    String
+  payload    Json
+  fetchedAt  DateTime @default(now())
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@unique([businessId, placeId])
+  @@index([businessId])
+  @@map("google_review_cache")
 }
 
 // ─── Enums ────────────────────────────────────────────────────────────
