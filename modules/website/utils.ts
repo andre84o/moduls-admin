@@ -90,6 +90,28 @@ export function mapPublishedSections(
 }
 
 /**
+ * Choose the SAFE public businessId for sessionless website rendering.
+ * Resolution order (Phase 0.5 — reusable SaaS template safety):
+ *   1. An explicit PUBLIC_BUSINESS_ID always wins (the configured public tenant).
+ *   2. Otherwise fall back to the only business when EXACTLY one exists.
+ *   3. Otherwise return null — with zero or multiple businesses and no explicit
+ *      tenant we must NEVER guess which business the public site belongs to.
+ *
+ * Pure (no I/O): the caller reads the env var and supplies the candidate
+ * business ids, so this stays unit-testable. A blank/whitespace env value is
+ * treated as unset.
+ */
+export function pickPublicBusinessId(
+  envBusinessId: string | null | undefined,
+  businessIds: ReadonlyArray<string>,
+): string | null {
+  const explicit = envBusinessId?.trim();
+  if (explicit) return explicit;
+  if (businessIds.length === 1) return businessIds[0];
+  return null;
+}
+
+/**
  * Normalise a page `key` to a stable, URL-safe, lowercase slug-like token.
  * Keys identify a page within a business and must be deterministic, so this
  * lowercases, trims, and collapses any run of non-alphanumerics into a single
