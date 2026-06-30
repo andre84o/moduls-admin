@@ -26,6 +26,15 @@ export function isPaymentConfigured(): boolean {
 }
 
 /**
+ * Google Reviews integration is configured only when a server-side Places API
+ * key is present. The key (GOOGLE_PLACES_API_KEY) is read server-side only and
+ * is never exposed to the client — this flag just gates whether a sync can run.
+ */
+export function isGoogleReviewsConfigured(): boolean {
+  return Boolean(process.env.GOOGLE_PLACES_API_KEY);
+}
+
+/**
  * Demo mode: no real database is configured yet. The admin UI stays browsable
  * with seeded demo data and a synthetic SUPER_ADMIN session. Server-side only.
  */
