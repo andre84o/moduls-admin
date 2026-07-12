@@ -5,6 +5,11 @@ import {
   getCustomers,
 } from "@/lib/queries";
 import { getWebsitePagesWithSections } from "@/modules/website/queries";
+import {
+  getGoogleReviewSettings,
+  getCachedGoogleReviewsAdmin,
+} from "@/modules/website/google-reviews/queries";
+import { isGoogleReviewsConfigured } from "@/lib/config";
 import { listUserBusinesses, getActiveBusinessId } from "@/lib/auth";
 import { getEnabledModules } from "@/lib/modules";
 import { AdminShell } from "./_components/admin-shell";
@@ -19,6 +24,8 @@ export default async function AdminPage() {
     bookings,
     customers,
     websitePages,
+    googleReviewSettings,
+    googleReviewCache,
     businesses,
     activeId,
     enabledModules,
@@ -28,10 +35,15 @@ export default async function AdminPage() {
     getBookings(),
     getCustomers(),
     getWebsitePagesWithSections(),
+    getGoogleReviewSettings(),
+    getCachedGoogleReviewsAdmin(),
     listUserBusinesses(),
     getActiveBusinessId(),
     getEnabledModules(),
   ]);
+
+  // Server-side env check — the API key value is never sent to the client.
+  const googleReviewsConfigured = isGoogleReviewsConfigured();
 
   return (
     <AdminShell
@@ -40,6 +52,9 @@ export default async function AdminPage() {
       bookings={bookings}
       customers={customers}
       websitePages={websitePages}
+      googleReviewSettings={googleReviewSettings}
+      googleReviewCache={googleReviewCache}
+      googleReviewsConfigured={googleReviewsConfigured}
       businesses={businesses.map((b) => ({ id: b.id, name: b.name, role: b.role }))}
       activeBusinessId={activeId}
       enabledModules={Array.from(enabledModules)}
