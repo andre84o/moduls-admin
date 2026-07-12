@@ -14,6 +14,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const hoisted = vi.hoisted(() => ({
   access: { businessId: "biz_1", userId: "user_1", role: "OWNER" as const, isDemo: false },
+  // Whether the paid Google Reviews add-on is granted for the business.
+  hasAddOn: true,
   settingsRow: { enabled: true, placeId: "place_1" } as
     | { enabled: boolean; placeId: string | null }
     | null,
@@ -35,6 +37,10 @@ const hoisted = vi.hoisted(() => ({
 
 vi.mock("@/lib/modules", () => ({
   requireModule: vi.fn(async () => hoisted.access),
+}));
+vi.mock("@/lib/feature-access", () => ({
+  GOOGLE_REVIEWS_FEATURE_KEY: "GOOGLE_REVIEWS",
+  hasBusinessFeatureAccess: vi.fn(async () => hoisted.hasAddOn),
 }));
 vi.mock("@/lib/audit", () => ({
   writeAuditLog: vi.fn(async (entry: { action: string }) => {
@@ -95,6 +101,7 @@ function auditActions(): string[] {
 
 beforeEach(() => {
   hoisted.access = { businessId: "biz_1", userId: "user_1", role: "OWNER", isDemo: false };
+  hoisted.hasAddOn = true;
   hoisted.settingsRow = { enabled: true, placeId: "place_1" };
   hoisted.service = {
     status: "OK",
@@ -252,5 +259,52 @@ describe("clearGoogleReviewCache — only the active business's cache", () => {
     const res = await clearGoogleReviewCache();
     expect(res).toEqual({});
     expect(hoisted.calls.cacheDeleteMany).toHaveLength(0);
+  });
+});
+
+describe("add-on access gate (paid Google Reviews add-on)", () => {
+  it("saveGoogleReviewSettings returns a clean error and writes nothing when the add-on is disabled", async () => {
+    hoisted.hasAddOn = false;
+    const res = await saveGoogleReviewSettings({ enabled: true, placeId: "place_1" });
+    expect(res).toEqual({ error: "Google Reviews is not enabled for this business." });
+    expect(hoisted.calls.settingsUpsert).toHaveLength(0);
+    expect(hoisted.calls.audit).toHaveLength(0);
+  });
+
+  it("syncGoogleReviews returns a clean error and does not fetch/write when the add-on is disabled", async () => {
+    hoisted.hasAddOn = false;
+    const res = await syncGoogleReviews();
+    expect(res).toEqual({ error: "Google Reviews is not enabled for this business." });
+    expect(hoisted.calls.settingsFindUnique).toHaveLength(0);
+    expect(hoisted.calls.cacheCreate).toHaveLength(0);
+    expect(hoisted.calls.audit).toHaveLength(0);
+  });
+
+  it("clearGoogleReviewCache returns a clean error and deletes nothing when the add-on is disabled", async () => {
+    hoisted.hasAddOn = false;
+    const res = await clearGoogleReviewCache();
+    expect(res).toEqual({ error: "Google Reviews is not enabled for this business." });
+    expect(hoisted.calls.cacheDeleteMany).toHaveLength(0);
+    expect(hoisted.calls.audit).toHaveLength(0);
+  });
+
+  it("allows save/sync/clear when the add-on is enabled and the WEBSITE module is active", async () => {
+    hoisted.hasAddOn = true;
+    expect(await saveGoogleReviewSettings({ enabled: true, placeId: "place_1" })).toEqual({});
+    expect(hoisted.calls.settingsUpsert).toHaveLength(1);
+
+    const sync = await syncGoogleReviews();
+    expect(sync.error).toBeUndefined();
+    expect(hoisted.calls.cacheCreate).toHaveLength(1);
+
+    expect(await clearGoogleReviewCache()).toEqual({ count: 2 });
+  });
+
+  it("still no-ops in demo mode even though the add-on check would pass", async () => {
+    hoisted.access = { ...hoisted.access, isDemo: true };
+    hoisted.hasAddOn = false; // demo bypasses the DB add-on lookup entirely
+    const res = await saveGoogleReviewSettings({ enabled: true, placeId: "place_1" });
+    expect(res).toEqual({});
+    expect(hoisted.calls.settingsUpsert).toHaveLength(0);
   });
 });

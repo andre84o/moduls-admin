@@ -2,6 +2,7 @@ import "server-only";
 import { requireSuperAdmin } from "./auth";
 import { getPrisma } from "./prisma";
 import { DEMO_BUSINESS_ID } from "./config";
+import { GOOGLE_REVIEWS_FEATURE_KEY } from "./feature-access";
 import type { ProjectType } from "@/app/generated/prisma/enums";
 
 /**
@@ -17,6 +18,8 @@ export type BusinessModules = {
   name: string;
   slug: string;
   modules: { WEBSITE: boolean; RENTAL: boolean; BOOKING: boolean; CRM: boolean };
+  // Paid add-ons (NOT modules): granted via BusinessFeatureAccess, not Project.
+  addOns: { GOOGLE_REVIEWS: boolean };
 };
 
 /** Every business with its WEBSITE/RENTAL/BOOKING/CRM enablement (ACTIVE Project = on). */
@@ -27,9 +30,11 @@ export async function getAllBusinessesWithModules(): Promise<BusinessModules[]> 
     // Demo: a sample list so the page is browsable without a database.
     return [
       { id: DEMO_BUSINESS_ID, name: "Demo Estates", slug: "demo",
-        modules: { WEBSITE: false, RENTAL: true, BOOKING: true, CRM: false } },
+        modules: { WEBSITE: false, RENTAL: true, BOOKING: true, CRM: false },
+        addOns: { GOOGLE_REVIEWS: false } },
       { id: "demo-business-2", name: "Acme Services", slug: "acme",
-        modules: { WEBSITE: true, RENTAL: false, BOOKING: true, CRM: true } },
+        modules: { WEBSITE: true, RENTAL: false, BOOKING: true, CRM: true },
+        addOns: { GOOGLE_REVIEWS: true } },
     ];
   }
 
@@ -38,6 +43,7 @@ export async function getAllBusinessesWithModules(): Promise<BusinessModules[]> 
     orderBy: { name: "asc" },
     include: {
       projects: { where: { type: { in: MANAGED_MODULES } } },
+      featureAccess: { where: { key: GOOGLE_REVIEWS_FEATURE_KEY } },
     },
   });
 
@@ -53,6 +59,11 @@ export async function getAllBusinessesWithModules(): Promise<BusinessModules[]> 
         RENTAL: active("RENTAL"),
         BOOKING: active("BOOKING"),
         CRM: active("CRM"),
+      },
+      addOns: {
+        GOOGLE_REVIEWS: b.featureAccess.some(
+          (f) => f.key === GOOGLE_REVIEWS_FEATURE_KEY && f.enabled,
+        ),
       },
     };
   });

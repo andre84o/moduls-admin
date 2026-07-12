@@ -1,8 +1,13 @@
 import { getAllBusinessesWithModules } from "@/lib/super-admin";
-import { setModuleEnabled } from "@/lib/super-admin-actions";
+import {
+  setModuleEnabled,
+  setBusinessFeatureAccess,
+} from "@/lib/super-admin-actions";
+import { GOOGLE_REVIEWS_FEATURE_KEY } from "@/lib/feature-access";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
 
 const MODULES = ["WEBSITE", "RENTAL", "BOOKING", "CRM"] as const;
 
@@ -27,24 +32,59 @@ export default async function SuperModulesPage() {
                 <Badge variant="outline">{b.slug}</Badge>
               </CardTitle>
             </CardHeader>
-            <CardContent className="flex flex-wrap gap-3">
-              {MODULES.map((m) => {
-                const on = b.modules[m];
-                return (
-                  <form key={m} action={setModuleEnabled}>
-                    <input type="hidden" name="businessId" value={b.id} />
-                    <input type="hidden" name="type" value={m} />
-                    <input type="hidden" name="enabled" value={String(!on)} />
+            <CardContent className="space-y-4">
+              <div>
+                <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Modules
+                </p>
+                <div className="flex flex-wrap gap-3">
+                  {MODULES.map((m) => {
+                    const on = b.modules[m];
+                    return (
+                      <form key={m} action={setModuleEnabled}>
+                        <input type="hidden" name="businessId" value={b.id} />
+                        <input type="hidden" name="type" value={m} />
+                        <input type="hidden" name="enabled" value={String(!on)} />
+                        <Button
+                          type="submit"
+                          size="sm"
+                          variant={on ? "default" : "outline"}
+                        >
+                          {m} · {on ? "Enabled" : "Disabled"}
+                        </Button>
+                      </form>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <Separator />
+
+              <div>
+                <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Add-ons (paid)
+                </p>
+                <div className="flex flex-wrap gap-3">
+                  {/* Google Reviews is a paid Website add-on, gated via
+                      BusinessFeatureAccess — NOT a module / ProjectType. */}
+                  <form
+                    action={setBusinessFeatureAccess.bind(null, {
+                      businessId: b.id,
+                      key: GOOGLE_REVIEWS_FEATURE_KEY,
+                      enabled: !b.addOns.GOOGLE_REVIEWS,
+                    })}
+                  >
                     <Button
                       type="submit"
                       size="sm"
-                      variant={on ? "default" : "outline"}
+                      variant={b.addOns.GOOGLE_REVIEWS ? "default" : "outline"}
                     >
-                      {m} · {on ? "Enabled" : "Disabled"}
+                      Google Reviews ·{" "}
+                      {b.addOns.GOOGLE_REVIEWS ? "Enabled" : "Disabled"}
                     </Button>
                   </form>
-                );
-              })}
+                </div>
+              </div>
             </CardContent>
           </Card>
         ))}

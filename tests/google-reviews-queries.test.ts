@@ -12,6 +12,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const hoisted = vi.hoisted(() => ({
   access: { businessId: "biz_1", userId: "user_1", role: "OWNER" as const, isDemo: false },
   moduleEnabled: true,
+  // Whether the paid Google Reviews add-on is granted for the business.
+  hasAddOn: true,
   settingsRow: null as Record<string, unknown> | null,
   cacheRow: null as Record<string, unknown> | null,
   calls: {
@@ -25,6 +27,10 @@ vi.mock("@/lib/auth", () => ({
 }));
 vi.mock("@/lib/modules", () => ({
   isModuleEnabled: vi.fn(async () => hoisted.moduleEnabled),
+}));
+vi.mock("@/lib/feature-access", () => ({
+  GOOGLE_REVIEWS_FEATURE_KEY: "GOOGLE_REVIEWS",
+  hasBusinessFeatureAccess: vi.fn(async () => hoisted.hasAddOn),
 }));
 vi.mock("@/lib/prisma", () => ({
   isDbConfigured: () => true,
@@ -47,6 +53,7 @@ vi.mock("@/lib/prisma", () => ({
 import {
   getGoogleReviewSettings,
   getCachedGoogleReviewsAdmin,
+  isGoogleReviewsAddOnEnabled,
 } from "@/modules/website/google-reviews/queries";
 
 function whereOf(arg: unknown): Record<string, unknown> {
@@ -56,6 +63,7 @@ function whereOf(arg: unknown): Record<string, unknown> {
 beforeEach(() => {
   hoisted.access = { businessId: "biz_1", userId: "user_1", role: "OWNER", isDemo: false };
   hoisted.moduleEnabled = true;
+  hoisted.hasAddOn = true;
   hoisted.settingsRow = null;
   hoisted.cacheRow = null;
   hoisted.calls = { settingsFindUnique: [], cacheFindUnique: [] };
@@ -151,5 +159,45 @@ describe("getCachedGoogleReviewsAdmin", () => {
     expect(cached.reviews).toEqual([]);
     expect(hoisted.calls.settingsFindUnique).toHaveLength(0);
     expect(hoisted.calls.cacheFindUnique).toHaveLength(0);
+  });
+});
+
+describe("paid add-on gate — admin reads and panel visibility", () => {
+  it("returns default settings without a DB read when the add-on is not granted", async () => {
+    hoisted.hasAddOn = false;
+    const settings = await getGoogleReviewSettings();
+    expect(settings.enabled).toBe(false);
+    expect(hoisted.calls.settingsFindUnique).toHaveLength(0);
+  });
+
+  it("returns empty cache without a DB read when the add-on is not granted", async () => {
+    hoisted.hasAddOn = false;
+    hoisted.settingsRow = { placeId: "place_1" };
+    const cached = await getCachedGoogleReviewsAdmin();
+    expect(cached.reviews).toEqual([]);
+    expect(hoisted.calls.settingsFindUnique).toHaveLength(0);
+    expect(hoisted.calls.cacheFindUnique).toHaveLength(0);
+  });
+
+  it("hides the admin panel (isGoogleReviewsAddOnEnabled=false) when the add-on is disabled", async () => {
+    hoisted.hasAddOn = false;
+    expect(await isGoogleReviewsAddOnEnabled()).toBe(false);
+  });
+
+  it("shows the admin panel when WEBSITE is enabled AND the add-on is granted", async () => {
+    hoisted.moduleEnabled = true;
+    hoisted.hasAddOn = true;
+    expect(await isGoogleReviewsAddOnEnabled()).toBe(true);
+  });
+
+  it("hides the admin panel when the WEBSITE module is disabled, regardless of add-on", async () => {
+    hoisted.moduleEnabled = false;
+    hoisted.hasAddOn = true;
+    expect(await isGoogleReviewsAddOnEnabled()).toBe(false);
+  });
+
+  it("shows the admin panel in demo mode", async () => {
+    hoisted.access = { ...hoisted.access, isDemo: true };
+    expect(await isGoogleReviewsAddOnEnabled()).toBe(true);
   });
 });

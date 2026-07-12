@@ -45,6 +45,7 @@ model Business {
   websiteSections WebsiteSection[]
   googleReviewSettings GoogleReviewSettings?
   googleReviewCaches   GoogleReviewCache[]
+  featureAccess        BusinessFeatureAccess[]
 
   @@map("businesses")
 }
@@ -480,6 +481,25 @@ model GoogleReviewCache {
   @@unique([businessId, placeId])
   @@index([businessId])
   @@map("google_review_cache")
+}
+
+/// Generic per-business add-on / feature access gate. NOT a module (no
+/// ProjectType) — this is how a SUPER_ADMIN grants paid Website add-ons like
+/// Google Reviews (`key = "GOOGLE_REVIEWS"`). `enabled` defaults to false so an
+/// add-on is off until a platform admin turns it on. One row per (business, key).
+model BusinessFeatureAccess {
+  id         String   @id @default(cuid())
+  businessId String
+  key        String
+  enabled    Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@unique([businessId, key])
+  @@index([businessId])
+  @@map("business_feature_access")
 }
 
 // ─── Enums ────────────────────────────────────────────────────────────

@@ -8,6 +8,7 @@ import { getWebsitePagesWithSections } from "@/modules/website/queries";
 import {
   getGoogleReviewSettings,
   getCachedGoogleReviewsAdmin,
+  isGoogleReviewsAddOnEnabled,
 } from "@/modules/website/google-reviews/queries";
 import { isGoogleReviewsConfigured } from "@/lib/config";
 import { listUserBusinesses, getActiveBusinessId } from "@/lib/auth";
@@ -26,6 +27,7 @@ export default async function AdminPage() {
     websitePages,
     googleReviewSettings,
     googleReviewCache,
+    googleReviewsAddOnEnabled,
     businesses,
     activeId,
     enabledModules,
@@ -37,6 +39,7 @@ export default async function AdminPage() {
     getWebsitePagesWithSections(),
     getGoogleReviewSettings(),
     getCachedGoogleReviewsAdmin(),
+    isGoogleReviewsAddOnEnabled(),
     listUserBusinesses(),
     getActiveBusinessId(),
     getEnabledModules(),
@@ -55,6 +58,7 @@ export default async function AdminPage() {
       googleReviewSettings={googleReviewSettings}
       googleReviewCache={googleReviewCache}
       googleReviewsConfigured={googleReviewsConfigured}
+      googleReviewsAddOnEnabled={googleReviewsAddOnEnabled}
       businesses={businesses.map((b) => ({ id: b.id, name: b.name, role: b.role }))}
       activeBusinessId={activeId}
       enabledModules={Array.from(enabledModules)}
