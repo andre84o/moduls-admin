@@ -32,11 +32,16 @@ import type {
   BusinessOption,
 } from "../types";
 import type { AdminWebsitePageWithSections } from "@/modules/website/types";
+import type {
+  AdminGoogleReviewSettings,
+  AdminCachedGoogleReviews,
+} from "@/modules/website/google-reviews/queries";
 import { OverviewSection } from "./sections/overview";
 import { PropertiesSection } from "./sections/properties";
 import { BookingsSection } from "./sections/bookings";
 import { CustomersSection } from "./sections/customers";
 import { WebsiteSection } from "./sections/website";
+import { GoogleReviewsSettings } from "./sections/google-reviews-settings";
 
 const sections = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
@@ -62,6 +67,9 @@ export function AdminShell({
   bookings,
   customers,
   websitePages,
+  googleReviewSettings,
+  googleReviewCache,
+  googleReviewsConfigured,
   businesses,
   activeBusinessId,
   enabledModules,
@@ -71,6 +79,9 @@ export function AdminShell({
   bookings: AdminBooking[];
   customers: AdminCustomer[];
   websitePages: AdminWebsitePageWithSections[];
+  googleReviewSettings: AdminGoogleReviewSettings;
+  googleReviewCache: AdminCachedGoogleReviews;
+  googleReviewsConfigured: boolean;
   businesses: BusinessOption[];
   activeBusinessId: string | null;
   enabledModules: string[];
@@ -243,7 +254,16 @@ export function AdminShell({
               <CustomersSection customers={customers} />
             )}
             {effectiveActive === "website" && (
-              <WebsiteSection pages={websitePages} />
+              <div className="space-y-10">
+                <WebsiteSection pages={websitePages} />
+                {/* Google Reviews is a Website integration, kept clearly
+                    separate from the page/section editor above. */}
+                <GoogleReviewsSettings
+                  settings={googleReviewSettings}
+                  cache={googleReviewCache}
+                  configured={googleReviewsConfigured}
+                />
+              </div>
             )}
           </div>
         </main>
