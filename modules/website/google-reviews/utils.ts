@@ -208,6 +208,26 @@ export function normalizePayload(raw: unknown): NormalizedGoogleReviews {
   };
 }
 
+/**
+ * Pull place-level metadata (maps link + display name) out of a cached Google
+ * payload. Additive to normalizePayload so callers that need these extra fields
+ * (the public loader) get them without changing the normalized-reviews shape.
+ * Supports the legacy `{ result }` envelope and both field spellings (legacy
+ * `url`/`name`, Places API New `googleMapsUri`/`displayName` as `{ text }`).
+ * Never throws; returns null for anything missing. Reads no tenant field.
+ */
+export function extractPlaceMeta(raw: unknown): {
+  googleMapsUri: string | null;
+  placeName: string | null;
+} {
+  const obj = isPlainObject(raw) ? raw : {};
+  const result = isPlainObject(obj.result) ? obj.result : obj;
+  return {
+    googleMapsUri: firstStringOrNull(result.url, result.googleMapsUri),
+    placeName: pickText(result.name, result.displayName) || null,
+  };
+}
+
 // ─── selection (filter + sort + clamp) ────────────────────────────────
 
 /**

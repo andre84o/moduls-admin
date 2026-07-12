@@ -4,6 +4,7 @@ import { Hero } from "@/components/sections/Hero";
 import { FeatureGrid } from "@/components/sections/FeatureGrid";
 import { SiteFooter } from "@/components/sections/SiteFooter";
 import { BookingBanner } from "@/components/sections/BookingBanner";
+import { GoogleReviews } from "@/components/sections/GoogleReviews";
 
 /**
  * Typed section definitions for the public rendering layer.
@@ -42,13 +43,19 @@ export type BookingBannerSection = {
   props: ComponentProps<typeof BookingBanner>;
 };
 
+export type GoogleReviewsSection = {
+  type: "googleReviews";
+  props: ComponentProps<typeof GoogleReviews>;
+};
+
 /** Discriminated union of every renderable public section. */
 export type Section =
   | SiteHeaderSection
   | HeroSection
   | FeatureGridSection
   | SiteFooterSection
-  | BookingBannerSection;
+  | BookingBannerSection
+  | GoogleReviewsSection;
 
 /** All known section type discriminators. */
 export type SectionType = Section["type"];
