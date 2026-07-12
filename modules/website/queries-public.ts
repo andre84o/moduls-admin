@@ -4,6 +4,7 @@ import { isModuleEnabledForBusiness } from "@/lib/modules";
 import { isDemoMode } from "@/lib/config";
 import type { Section } from "@/components/sections/types";
 import { mapPublishedSections, pickPublicBusinessId } from "./utils";
+import { getPublicGoogleReviews } from "./google-reviews/queries-public";
 
 /**
  * PUBLIC, sessionless read layer for the Website content module.
@@ -85,7 +86,30 @@ export async function getPublishedPageSections(
   if (!page) return null;
 
   const sections = mapPublishedSections(page.sections);
-  return sections.length > 0 ? sections : null;
+  const enriched = await injectGoogleReviews(businessId, sections);
+  return enriched.length > 0 ? enriched : null;
+}
+
+/**
+ * Inject cached Google reviews into any `googleReviews` sections, scoped by the
+ * already server-resolved businessId. Editorial content (from publishedContent)
+ * is preserved; only the review data (reviews + place aggregates) is merged in
+ * from the cache. No-op — and no extra query — when the page has no googleReviews
+ * section. This reads ONLY the cache (never the Google API / API key): see
+ * ./google-reviews/queries-public.
+ */
+async function injectGoogleReviews(
+  businessId: string,
+  sections: Section[],
+): Promise<Section[]> {
+  if (!sections.some((s) => s.type === "googleReviews")) return sections;
+
+  const data = await getPublicGoogleReviews(businessId);
+  return sections.map((section) =>
+    section.type === "googleReviews"
+      ? { ...section, props: { ...section.props, ...data } }
+      : section,
+  );
 }
 
 /** Published home sections, or null when the config fallback should be used. */

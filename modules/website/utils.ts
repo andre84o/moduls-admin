@@ -14,6 +14,7 @@ const KNOWN_SECTION_TYPES = new Set<string>([
   "featureGrid",
   "siteFooter",
   "bookingBanner",
+  "googleReviews",
 ] satisfies SectionType[]);
 
 /** A raw published section row as read from the database. */
@@ -55,6 +56,12 @@ function isRenderableSection(type: string, content: unknown): boolean {
       return isPlainObject(content.brand);
     case "bookingBanner":
       return true; // both messages optional; an empty object is renderable
+    case "googleReviews":
+      // Editorial content (eyebrow/heading/body + show* toggles) is all
+      // optional; the reviews themselves are injected server-side after this
+      // mapping. Any plain object is renderable — an empty object shows just the
+      // (possibly empty) editorial header without throwing.
+      return true;
     default:
       return false;
   }

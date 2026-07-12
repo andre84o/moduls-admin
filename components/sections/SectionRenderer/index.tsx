@@ -4,6 +4,7 @@ import { Hero } from "@/components/sections/Hero";
 import { FeatureGrid } from "@/components/sections/FeatureGrid";
 import { SiteFooter } from "@/components/sections/SiteFooter";
 import { BookingBanner } from "@/components/sections/BookingBanner";
+import { GoogleReviews } from "@/components/sections/GoogleReviews";
 import type { Section, SectionType } from "@/components/sections/types";
 
 /**
@@ -23,6 +24,7 @@ export const sectionRegistry = {
   featureGrid: FeatureGrid,
   siteFooter: SiteFooter,
   bookingBanner: BookingBanner,
+  googleReviews: GoogleReviews,
 } satisfies Record<SectionType, ComponentType<never>>;
 
 function assertNever(section: never): never {
@@ -50,6 +52,8 @@ export function SectionRenderer({ section }: { section: Section }) {
       return <SiteFooter {...section.props} />;
     case "bookingBanner":
       return <BookingBanner {...section.props} />;
+    case "googleReviews":
+      return <GoogleReviews {...section.props} />;
     default:
       return assertNever(section);
   }

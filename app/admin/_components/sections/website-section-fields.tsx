@@ -35,6 +35,7 @@ export const KNOWN_SECTION_TYPES = [
   "featureGrid",
   "siteFooter",
   "bookingBanner",
+  "googleReviews",
 ] as const;
 
 export type KnownSectionType = (typeof KNOWN_SECTION_TYPES)[number];
@@ -47,6 +48,10 @@ export function isKnownSectionType(type: string): type is KnownSectionType {
 
 function str(v: unknown): string {
   return typeof v === "string" ? v : "";
+}
+
+function bool(v: unknown, fallback = false): boolean {
+  return typeof v === "boolean" ? v : fallback;
 }
 
 function obj(v: unknown): Record<string, unknown> {
@@ -138,6 +143,8 @@ export function validateSectionContent(
     }
     case "bookingBanner":
       return null; // both messages optional (the component has fallbacks)
+    case "googleReviews":
+      return null; // editorial content is all optional; reviews are injected
     default:
       return null;
   }
@@ -471,6 +478,68 @@ function BookingBannerFields({
   );
 }
 
+function GoogleReviewsFields({
+  id,
+  content,
+  onChange,
+}: {
+  id: string;
+  content: SectionContent;
+  onChange: (next: SectionContent) => void;
+}) {
+  const set = (patch: SectionContent) => onChange({ ...content, ...patch });
+  return (
+    <div className="grid gap-4 sm:grid-cols-2">
+      <Field label="Eyebrow" htmlFor={`${id}-eyebrow`} className="sm:col-span-2">
+        <Input
+          id={`${id}-eyebrow`}
+          value={str(content.eyebrow)}
+          onChange={(e) => set({ eyebrow: e.target.value })}
+          placeholder="What our customers say"
+        />
+      </Field>
+      <Field label="Heading" htmlFor={`${id}-heading`} className="sm:col-span-2">
+        <Input
+          id={`${id}-heading`}
+          value={str(content.heading)}
+          onChange={(e) => set({ heading: e.target.value })}
+        />
+      </Field>
+      <Field label="Text" htmlFor={`${id}-body`} className="sm:col-span-2">
+        <Textarea
+          id={`${id}-body`}
+          value={str(content.body)}
+          onChange={(e) => set({ body: e.target.value })}
+          className="min-h-24"
+        />
+      </Field>
+      <div className="flex items-center gap-6 sm:col-span-2">
+        <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <input
+            type="checkbox"
+            checked={bool(content.showRating, true)}
+            onChange={(e) => set({ showRating: e.target.checked })}
+            className="size-4 rounded border-input accent-primary"
+          />
+          Show overall rating
+        </label>
+        <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <input
+            type="checkbox"
+            checked={bool(content.showReviewCount, true)}
+            onChange={(e) => set({ showReviewCount: e.target.checked })}
+            className="size-4 rounded border-input accent-primary"
+          />
+          Show review count
+        </label>
+      </div>
+      <p className="text-xs text-muted-foreground sm:col-span-2">
+        Reviews are pulled from the cached Google sync and cannot be edited here.
+      </p>
+    </div>
+  );
+}
+
 /**
  * Render the typed field editor for a known section type. Returns null for
  * unknown types so the caller can fall back to the JSON editor.
@@ -497,6 +566,8 @@ export function SectionFields({
       return <FeatureGridFields id={id} content={content} onChange={onChange} />;
     case "bookingBanner":
       return <BookingBannerFields id={id} content={content} onChange={onChange} />;
+    case "googleReviews":
+      return <GoogleReviewsFields id={id} content={content} onChange={onChange} />;
     default:
       return null;
   }
