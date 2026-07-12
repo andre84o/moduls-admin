@@ -70,6 +70,7 @@ export function AdminShell({
   googleReviewSettings,
   googleReviewCache,
   googleReviewsConfigured,
+  googleReviewsAddOnEnabled,
   businesses,
   activeBusinessId,
   enabledModules,
@@ -82,6 +83,7 @@ export function AdminShell({
   googleReviewSettings: AdminGoogleReviewSettings;
   googleReviewCache: AdminCachedGoogleReviews;
   googleReviewsConfigured: boolean;
+  googleReviewsAddOnEnabled: boolean;
   businesses: BusinessOption[];
   activeBusinessId: string | null;
   enabledModules: string[];
@@ -256,13 +258,16 @@ export function AdminShell({
             {effectiveActive === "website" && (
               <div className="space-y-10">
                 <WebsiteSection pages={websitePages} />
-                {/* Google Reviews is a Website integration, kept clearly
-                    separate from the page/section editor above. */}
-                <GoogleReviewsSettings
-                  settings={googleReviewSettings}
-                  cache={googleReviewCache}
-                  configured={googleReviewsConfigured}
-                />
+                {/* Google Reviews is a paid Website add-on, gated server-side by
+                    a SUPER_ADMIN. The panel only renders when the business has
+                    been granted access (googleReviewsAddOnEnabled). */}
+                {googleReviewsAddOnEnabled ? (
+                  <GoogleReviewsSettings
+                    settings={googleReviewSettings}
+                    cache={googleReviewCache}
+                    configured={googleReviewsConfigured}
+                  />
+                ) : null}
               </div>
             )}
           </div>

@@ -4,7 +4,12 @@ import { revalidatePath } from "next/cache";
 import type { Prisma } from "@/app/generated/prisma/client";
 import { getPrisma } from "@/lib/prisma";
 import { requireModule } from "@/lib/modules";
+import {
+  hasBusinessFeatureAccess,
+  GOOGLE_REVIEWS_FEATURE_KEY,
+} from "@/lib/feature-access";
 import { writeAuditLog } from "@/lib/audit";
+import type { BusinessAccess } from "@/lib/auth";
 import { fetchGooglePlaceReviews } from "./service";
 import { clampMaxCount, clampMinRating, normalizePayload, DEFAULT_MAX_COUNT } from "./utils";
 
@@ -27,6 +32,19 @@ import { clampMaxCount, clampMinRating, normalizePayload, DEFAULT_MAX_COUNT } fr
 
 const WEBSITE_WRITER_ROLES = ["OWNER", "ADMIN"] as const;
 
+const ADDON_DISABLED_ERROR = "Google Reviews is not enabled for this business.";
+
+/**
+ * Gate every mutating action behind the paid Google Reviews add-on. Access is
+ * checked against the SERVER-RESOLVED businessId (from requireModule), never a
+ * client value. Demo mode is treated as granted (no database). Returns true when
+ * the caller may proceed, false when the add-on is not enabled.
+ */
+async function hasGoogleReviewsAddOn(access: BusinessAccess): Promise<boolean> {
+  if (access.isDemo) return true;
+  return hasBusinessFeatureAccess(access.businessId, GOOGLE_REVIEWS_FEATURE_KEY);
+}
+
 /** Trim a place id to a non-empty string, or null. Place ids are opaque. */
 function normalizePlaceId(raw: string | null | undefined): string | null {
   if (typeof raw !== "string") return null;
@@ -48,6 +66,9 @@ export async function saveGoogleReviewSettings(input: {
   const access = await requireModule("WEBSITE", {
     allowedRoles: [...WEBSITE_WRITER_ROLES],
   });
+  if (!(await hasGoogleReviewsAddOn(access))) {
+    return { error: ADDON_DISABLED_ERROR };
+  }
 
   const enabled = Boolean(input.enabled);
   const placeId = normalizePlaceId(input.placeId);
@@ -95,6 +116,9 @@ export async function syncGoogleReviews(): Promise<{ error?: string; count?: num
   const access = await requireModule("WEBSITE", {
     allowedRoles: [...WEBSITE_WRITER_ROLES],
   });
+  if (!(await hasGoogleReviewsAddOn(access))) {
+    return { error: ADDON_DISABLED_ERROR };
+  }
   if (access.isDemo) return {};
 
   const prisma = getPrisma();
@@ -182,6 +206,9 @@ export async function clearGoogleReviewCache(): Promise<{ error?: string; count?
   const access = await requireModule("WEBSITE", {
     allowedRoles: [...WEBSITE_WRITER_ROLES],
   });
+  if (!(await hasGoogleReviewsAddOn(access))) {
+    return { error: ADDON_DISABLED_ERROR };
+  }
   if (access.isDemo) return {};
 
   const { count } = await getPrisma().googleReviewCache.deleteMany({

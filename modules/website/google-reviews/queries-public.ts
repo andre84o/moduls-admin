@@ -1,6 +1,10 @@
 import "server-only";
 import { getPrisma } from "@/lib/prisma";
 import {
+  hasBusinessFeatureAccess,
+  GOOGLE_REVIEWS_FEATURE_KEY,
+} from "@/lib/feature-access";
+import {
   normalizePayload,
   selectReviews,
   extractPlaceMeta,
@@ -52,6 +56,12 @@ const EMPTY_PUBLIC_REVIEWS: PublicGoogleReviews = {
 export async function getPublicGoogleReviews(
   businessId: string,
 ): Promise<PublicGoogleReviews> {
+  // Paid add-on gate: without the Google Reviews add-on the public site shows
+  // nothing, regardless of settings/cache. Scoped by the server-resolved tenant.
+  if (!(await hasBusinessFeatureAccess(businessId, GOOGLE_REVIEWS_FEATURE_KEY))) {
+    return { ...EMPTY_PUBLIC_REVIEWS };
+  }
+
   const prisma = getPrisma();
 
   // Settings gate the integration; scoped by the server-resolved businessId.

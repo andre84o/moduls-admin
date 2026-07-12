@@ -2,6 +2,10 @@ import "server-only";
 import { getPrisma } from "@/lib/prisma";
 import { requireBusinessAccess, type BusinessAccess } from "@/lib/auth";
 import { isModuleEnabled } from "@/lib/modules";
+import {
+  hasBusinessFeatureAccess,
+  GOOGLE_REVIEWS_FEATURE_KEY,
+} from "@/lib/feature-access";
 import { DEFAULT_MAX_COUNT, normalizePayload } from "./utils";
 import type { GoogleReview } from "./types";
 
@@ -54,10 +58,28 @@ const EMPTY_CACHE: AdminCachedGoogleReviews = {
   reviews: [],
 };
 
-/** Whether the WEBSITE module is usable for this access (enabled, has a DB). */
-async function websiteReadable(access: BusinessAccess): Promise<boolean> {
+/**
+ * Whether Google Reviews is usable for this access: the WEBSITE module is
+ * enabled AND the paid Google Reviews add-on is granted for the business. Demo
+ * mode has no database, so it reads nothing here. Scoped by the server-resolved
+ * businessId (never a client value).
+ */
+async function googleReviewsReadable(access: BusinessAccess): Promise<boolean> {
   if (access.isDemo) return false; // no database in demo mode
-  return isModuleEnabled("WEBSITE", access);
+  if (!(await isModuleEnabled("WEBSITE", access))) return false;
+  return hasBusinessFeatureAccess(access.businessId, GOOGLE_REVIEWS_FEATURE_KEY);
+}
+
+/**
+ * Whether the Google Reviews admin panel should be shown for the active
+ * business. True only when the WEBSITE module is enabled AND the add-on is
+ * granted. Demo mode shows the panel (every add-on is enabled in demo).
+ */
+export async function isGoogleReviewsAddOnEnabled(): Promise<boolean> {
+  const access = await requireBusinessAccess();
+  if (access.isDemo) return true; // demo: add-on enabled, panel browsable
+  if (!(await isModuleEnabled("WEBSITE", access))) return false;
+  return hasBusinessFeatureAccess(access.businessId, GOOGLE_REVIEWS_FEATURE_KEY);
 }
 
 /**
@@ -67,7 +89,7 @@ async function websiteReadable(access: BusinessAccess): Promise<boolean> {
  */
 export async function getGoogleReviewSettings(): Promise<AdminGoogleReviewSettings> {
   const access = await requireBusinessAccess();
-  if (!(await websiteReadable(access))) return { ...DEFAULT_SETTINGS };
+  if (!(await googleReviewsReadable(access))) return { ...DEFAULT_SETTINGS };
 
   const row = await getPrisma().googleReviewSettings.findUnique({
     where: { businessId: access.businessId },
@@ -100,7 +122,7 @@ export async function getGoogleReviewSettings(): Promise<AdminGoogleReviewSettin
  */
 export async function getCachedGoogleReviewsAdmin(): Promise<AdminCachedGoogleReviews> {
   const access = await requireBusinessAccess();
-  if (!(await websiteReadable(access))) return { ...EMPTY_CACHE };
+  if (!(await googleReviewsReadable(access))) return { ...EMPTY_CACHE };
 
   const prisma = getPrisma();
 

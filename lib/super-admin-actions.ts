@@ -5,6 +5,7 @@ import { requireSuperAdmin } from "./auth";
 import { getPrisma } from "./prisma";
 import { writeAuditLog } from "./audit";
 import { isDemoMode } from "./config";
+import { KNOWN_FEATURE_KEYS } from "./feature-access";
 import type { ProjectType } from "@/app/generated/prisma/enums";
 
 /**
@@ -58,6 +59,48 @@ export async function setModuleEnabled(formData: FormData) {
     entityType: "Project",
     entityId: null,
     metadata: { type },
+  });
+
+  revalidatePath("/admin/super/modules");
+}
+
+/**
+ * Grant or revoke a paid Website ADD-ON (e.g. Google Reviews) for a business.
+ * SUPER_ADMIN only. This is NOT a module toggle — it upserts a
+ * BusinessFeatureAccess row keyed by (businessId, key); it never touches Project
+ * rows or the ProjectType enum. The `key` is whitelisted so a client can never
+ * grant an arbitrary feature. businessId is passed by the SUPER_ADMIN on purpose
+ * (platform-level access), never trusted from a customer.
+ */
+export async function setBusinessFeatureAccess(input: {
+  businessId: string;
+  key: string;
+  enabled: boolean;
+}) {
+  const user = await requireSuperAdmin();
+
+  const businessId = input.businessId.trim();
+  const key = input.key.trim();
+  const enabled = Boolean(input.enabled);
+
+  // Whitelist: only known add-on keys can ever be granted.
+  if (!businessId || !KNOWN_FEATURE_KEYS.has(key)) return;
+
+  if (isDemoMode()) return; // no-op in demo
+
+  await getPrisma().businessFeatureAccess.upsert({
+    where: { businessId_key: { businessId, key } },
+    create: { businessId, key, enabled },
+    update: { enabled },
+  });
+
+  await writeAuditLog({
+    businessId,
+    userId: user.id,
+    action: enabled ? "feature.enabled" : "feature.disabled",
+    entityType: "BusinessFeatureAccess",
+    entityId: null,
+    metadata: { key },
   });
 
   revalidatePath("/admin/super/modules");

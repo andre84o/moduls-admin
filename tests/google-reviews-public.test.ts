@@ -29,6 +29,8 @@ const hoisted = vi.hoisted(() => ({
   }>,
   caches: [] as Array<{ businessId: string; placeId: string; payload: unknown }>,
   moduleEnabled: true,
+  // Businesses that have been granted the paid Google Reviews add-on.
+  addOnBusinesses: new Set<string>(),
   fetchCalls: 0,
   lastFindFirstArgs: null as { where?: Record<string, unknown>; select?: unknown } | null,
 }));
@@ -78,6 +80,12 @@ vi.mock("@/lib/config", () => ({ isDemoMode: () => false }));
 vi.mock("@/lib/modules", () => ({
   isModuleEnabledForBusiness: vi.fn(async () => hoisted.moduleEnabled),
 }));
+vi.mock("@/lib/feature-access", () => ({
+  GOOGLE_REVIEWS_FEATURE_KEY: "GOOGLE_REVIEWS",
+  hasBusinessFeatureAccess: vi.fn(async (businessId: string) =>
+    hoisted.addOnBusinesses.has(businessId),
+  ),
+}));
 
 import { mapPublishedSections } from "@/modules/website/utils";
 import { extractPlaceMeta } from "@/modules/website/google-reviews/utils";
@@ -123,6 +131,7 @@ beforeEach(() => {
   hoisted.settings = [];
   hoisted.caches = [];
   hoisted.moduleEnabled = true;
+  hoisted.addOnBusinesses = new Set(["biz_a", "biz_b"]);
   hoisted.fetchCalls = 0;
   hoisted.lastFindFirstArgs = null;
   delete process.env.PUBLIC_BUSINESS_ID;
@@ -241,6 +250,31 @@ describe("getPublicGoogleReviews — cache-only, tenant-scoped", () => {
     expect(a.placeName).toBe("AAA");
     expect(a.reviews.every((r) => r.author.startsWith("AAA"))).toBe(true);
     expect(a.reviews.some((r) => r.author.startsWith("BBB"))).toBe(false);
+  });
+
+  it("returns empty when the paid add-on is NOT granted, even with settings + cache", async () => {
+    hoisted.addOnBusinesses = new Set(); // add-on revoked for everyone
+    hoisted.settings = [{ businessId: "biz_a", enabled: true, placeId: "pa", minRating: null, maxCount: 6 }];
+    hoisted.caches = [{ businessId: "biz_a", placeId: "pa", payload: payload("Acme", 3) }];
+
+    const data = await getPublicGoogleReviews("biz_a");
+    expect(data.reviews).toEqual([]);
+    expect(data.aggregateRating).toBeNull();
+  });
+
+  it("add-on granted to business A does not enable business B's public reviews", async () => {
+    hoisted.addOnBusinesses = new Set(["biz_a"]); // only A has the add-on
+    hoisted.settings = [
+      { businessId: "biz_a", enabled: true, placeId: "pa", minRating: null, maxCount: 6 },
+      { businessId: "biz_b", enabled: true, placeId: "pb", minRating: null, maxCount: 6 },
+    ];
+    hoisted.caches = [
+      { businessId: "biz_a", placeId: "pa", payload: payload("AAA", 2) },
+      { businessId: "biz_b", placeId: "pb", payload: payload("BBB", 2) },
+    ];
+
+    expect((await getPublicGoogleReviews("biz_a")).reviews).toHaveLength(2);
+    expect((await getPublicGoogleReviews("biz_b")).reviews).toEqual([]);
   });
 });
 
