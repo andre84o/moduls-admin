@@ -44,6 +44,23 @@ export function isKnownSectionType(type: string): type is KnownSectionType {
   return (KNOWN_SECTION_TYPES as readonly string[]).includes(type);
 }
 
+/**
+ * Whether a section type has a friendly typed field editor (so the JSON fallback
+ * is not needed). This is broader than `isKnownSectionType`: `gallery` is not a
+ * publicly-rendered section type, but it still gets an image editor here so an
+ * existing gallery section never shows raw JSON to the author.
+ */
+// Extra section types that are NOT in the public registry but still get a
+// friendly editor here, so an existing section never shows raw JSON.
+const EXTRA_EDITOR_TYPES = ["gallery", "about", "reviews"] as const;
+
+export function hasFieldEditor(type: string): boolean {
+  return (
+    isKnownSectionType(type) ||
+    (EXTRA_EDITOR_TYPES as readonly string[]).includes(type)
+  );
+}
+
 // ─── value coercion helpers ───────────────────────────────────────────
 
 function str(v: unknown): string {
@@ -145,6 +162,14 @@ export function validateSectionContent(
       return null; // both messages optional (the component has fallbacks)
     case "googleReviews":
       return null; // editorial content is all optional; reviews are injected
+    case "gallery": {
+      const items = arr(content.items);
+      for (let i = 0; i < items.length; i++) {
+        if (!str(items[i].src).trim())
+          return `Image ${i + 1}: an image URL is required.`;
+      }
+      return null;
+    }
     default:
       return null;
   }
@@ -540,6 +565,326 @@ function GoogleReviewsFields({
   );
 }
 
+// Small light/dark background picker shared by the content sections that carry
+// a `tone` key. Kept inline (native select) to match the other simple controls.
+function ToneField({
+  id,
+  content,
+  onChange,
+}: {
+  id: string;
+  content: SectionContent;
+  onChange: (next: SectionContent) => void;
+}) {
+  const tone = str(content.tone) || "light";
+  return (
+    <Field label="Background" htmlFor={`${id}-tone`} className="max-w-40">
+      <select
+        id={`${id}-tone`}
+        value={tone}
+        onChange={(e) => onChange({ ...content, tone: e.target.value })}
+        className="h-9 w-full rounded-md border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
+      >
+        <option value="light">Light</option>
+        <option value="dark">Dark</option>
+      </select>
+    </Field>
+  );
+}
+
+function AboutFields({
+  id,
+  content,
+  onChange,
+}: {
+  id: string;
+  content: SectionContent;
+  onChange: (next: SectionContent) => void;
+}) {
+  const set = (patch: SectionContent) => onChange({ ...content, ...patch });
+  const cta = obj(content.cta);
+  const setCta = (patch: SectionContent) =>
+    onChange({ ...content, cta: { ...cta, ...patch } });
+
+  // Paragraphs are stored as a string[]; edit them with stable keys by wrapping
+  // each into { text } for the row helper and unwrapping back to strings.
+  const { rows: paras, commit } = useRows(
+    Array.isArray(content.paragraphs)
+      ? (content.paragraphs as unknown[]).map((p) => ({ text: String(p) }))
+      : [],
+    (next) => onChange({ ...content, paragraphs: next.map((r) => str(r.text)) }),
+  );
+
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label="Subtitle" htmlFor={`${id}-eyebrow`}>
+          <Input
+            id={`${id}-eyebrow`}
+            value={str(content.eyebrow)}
+            onChange={(e) => set({ eyebrow: e.target.value })}
+          />
+        </Field>
+        <Field label="Title" htmlFor={`${id}-heading`}>
+          <Input
+            id={`${id}-heading`}
+            value={str(content.heading)}
+            onChange={(e) => set({ heading: e.target.value })}
+          />
+        </Field>
+        <Field label="Image URL" htmlFor={`${id}-imageUrl`}>
+          <Input
+            id={`${id}-imageUrl`}
+            value={str(content.imageUrl)}
+            onChange={(e) => set({ imageUrl: e.target.value })}
+            placeholder="/photo.jpg"
+          />
+        </Field>
+        <Field label="Image description (alt text)" htmlFor={`${id}-imageAlt`}>
+          <Input
+            id={`${id}-imageAlt`}
+            value={str(content.imageAlt)}
+            onChange={(e) => set({ imageAlt: e.target.value })}
+          />
+        </Field>
+      </div>
+
+      <ToneField id={id} content={content} onChange={onChange} />
+
+      <div>
+        <div className="mb-2 flex items-center justify-between">
+          <Label className="text-xs">Paragraphs</Label>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => commit([...paras, { text: "" }])}
+          >
+            <Plus className="size-4" />
+            Add paragraph
+          </Button>
+        </div>
+        {paras.length === 0 ? (
+          <p className="text-xs text-muted-foreground">No paragraphs yet.</p>
+        ) : (
+          <div className="space-y-3">
+            {paras.map((item, i) => (
+              <div key={item._key} className="flex items-start gap-2">
+                <Textarea
+                  value={str(item.text)}
+                  onChange={(e) =>
+                    commit(
+                      paras.map((it, idx) =>
+                        idx === i ? { ...it, text: e.target.value } : it,
+                      ),
+                    )
+                  }
+                  className="min-h-20"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label="Remove paragraph"
+                  onClick={() => commit(paras.filter((_, idx) => idx !== i))}
+                >
+                  <Trash2 className="size-4 text-destructive" />
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label="Button text" htmlFor={`${id}-cta-label`}>
+          <Input
+            id={`${id}-cta-label`}
+            value={str(cta.label)}
+            onChange={(e) => setCta({ label: e.target.value })}
+          />
+        </Field>
+        <Field label="Button link" htmlFor={`${id}-cta-href`}>
+          <Input
+            id={`${id}-cta-href`}
+            value={str(cta.href)}
+            onChange={(e) => setCta({ href: e.target.value })}
+            placeholder="/book"
+          />
+        </Field>
+        <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <input
+            type="checkbox"
+            checked={Boolean(cta.external)}
+            onChange={(e) => setCta({ external: e.target.checked })}
+            className="size-4 rounded border-input accent-primary"
+          />
+          Opens in a new tab
+        </label>
+      </div>
+    </div>
+  );
+}
+
+function ReviewsFields({
+  id,
+  content,
+  onChange,
+}: {
+  id: string;
+  content: SectionContent;
+  onChange: (next: SectionContent) => void;
+}) {
+  const set = (patch: SectionContent) => onChange({ ...content, ...patch });
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field
+          label="Subtitle"
+          htmlFor={`${id}-eyebrow`}
+          className="sm:col-span-2"
+        >
+          <Input
+            id={`${id}-eyebrow`}
+            value={str(content.eyebrow)}
+            onChange={(e) => set({ eyebrow: e.target.value })}
+          />
+        </Field>
+        <Field
+          label="Title"
+          htmlFor={`${id}-heading`}
+          className="sm:col-span-2"
+        >
+          <Input
+            id={`${id}-heading`}
+            value={str(content.heading)}
+            onChange={(e) => set({ heading: e.target.value })}
+          />
+        </Field>
+        <Field label="Text" htmlFor={`${id}-body`} className="sm:col-span-2">
+          <Textarea
+            id={`${id}-body`}
+            value={str(content.body)}
+            onChange={(e) => set({ body: e.target.value })}
+            className="min-h-24"
+          />
+        </Field>
+        <Field
+          label="Map embed URL"
+          htmlFor={`${id}-src`}
+          className="sm:col-span-2"
+        >
+          <Input
+            id={`${id}-src`}
+            value={str(content.src)}
+            onChange={(e) => set({ src: e.target.value })}
+            placeholder="https://www.google.com/maps?...&output=embed"
+          />
+        </Field>
+      </div>
+      <ToneField id={id} content={content} onChange={onChange} />
+    </div>
+  );
+}
+
+function GalleryFields({
+  id,
+  content,
+  onChange,
+}: {
+  id: string;
+  content: SectionContent;
+  onChange: (next: SectionContent) => void;
+}) {
+  const { rows: items, commit } = useRows(arr(content.items), (next) =>
+    onChange({ ...content, items: next }),
+  );
+  const setItem = (i: number, patch: SectionContent) =>
+    commit(items.map((it, idx) => (idx === i ? { ...it, ...patch } : it)));
+
+  return (
+    <div className="space-y-4">
+      <ToneField id={id} content={content} onChange={onChange} />
+
+      <div>
+        <div className="mb-2 flex items-center justify-between">
+          <Label className="text-xs">Photos</Label>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => commit([...items, { src: "", alt: "" }])}
+          >
+            <Plus className="size-4" />
+            Add image
+          </Button>
+        </div>
+        {items.length === 0 ? (
+          <p className="text-xs text-muted-foreground">No photos yet.</p>
+        ) : (
+          <div className="space-y-3">
+            {items.map((item, i) => {
+              const src = str(item.src);
+              return (
+                <div
+                  key={item._key}
+                  className="flex items-start gap-3 rounded-md border p-3"
+                >
+                  <div className="grid size-16 shrink-0 place-items-center overflow-hidden rounded-md border bg-muted">
+                    {src ? (
+                      // Arbitrary author-provided URLs — a plain img avoids the
+                      // next/image remote-domain allowlist for this admin preview.
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={src}
+                        alt=""
+                        className="size-full object-cover"
+                      />
+                    ) : (
+                      <span className="text-[10px] text-muted-foreground">
+                        No image
+                      </span>
+                    )}
+                  </div>
+                  <div className="grid flex-1 gap-3 sm:grid-cols-2">
+                    <Field label="Image URL" htmlFor={`${id}-img-${i}-src`}>
+                      <Input
+                        id={`${id}-img-${i}-src`}
+                        value={src}
+                        onChange={(e) => setItem(i, { src: e.target.value })}
+                        placeholder="/images/photo.jpeg"
+                      />
+                    </Field>
+                    <Field
+                      label="Description (alt text)"
+                      htmlFor={`${id}-img-${i}-alt`}
+                    >
+                      <Input
+                        id={`${id}-img-${i}-alt`}
+                        value={str(item.alt)}
+                        onChange={(e) => setItem(i, { alt: e.target.value })}
+                      />
+                    </Field>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label="Remove image"
+                    onClick={() => commit(items.filter((_, idx) => idx !== i))}
+                  >
+                    <Trash2 className="size-4 text-destructive" />
+                  </Button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 /**
  * Render the typed field editor for a known section type. Returns null for
  * unknown types so the caller can fall back to the JSON editor.
@@ -568,6 +913,12 @@ export function SectionFields({
       return <BookingBannerFields id={id} content={content} onChange={onChange} />;
     case "googleReviews":
       return <GoogleReviewsFields id={id} content={content} onChange={onChange} />;
+    case "gallery":
+      return <GalleryFields id={id} content={content} onChange={onChange} />;
+    case "about":
+      return <AboutFields id={id} content={content} onChange={onChange} />;
+    case "reviews":
+      return <ReviewsFields id={id} content={content} onChange={onChange} />;
     default:
       return null;
   }

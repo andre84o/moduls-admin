@@ -152,16 +152,69 @@ export const listUserBusinesses = cache(async (): Promise<BusinessSummary[]> => 
   }));
 });
 
+/**
+ * Whether the current user is a PLATFORM (global) SUPER_ADMIN — i.e. has a
+ * SUPER_ADMIN BusinessMember row in ANY business. This is the same boundary
+ * requireSuperAdmin enforces, exposed as a boolean so per-business helpers can
+ * grant platform admins access to businesses they are not a member of. Demo mode
+ * is always a platform admin (synthetic SUPER_ADMIN session).
+ */
+export const isGlobalSuperAdmin = cache(async (): Promise<boolean> => {
+  if (demoMode()) return true;
+
+  const user = await getCurrentUser();
+  if (!user) return false;
+
+  const sa = await getPrisma().businessMember.findFirst({
+    where: { userId: user.id, role: "SUPER_ADMIN" },
+    select: { id: true },
+  });
+  return sa !== null;
+});
+
+/**
+ * Businesses shown in the admin business switcher. Regular users see only their
+ * memberships. A PLATFORM SUPER_ADMIN sees EVERY business so they can pick any
+ * one to manage — the documented cross-business exception (see CLAUDE.md); the
+ * per-business data stays scoped once a business is active.
+ */
+export async function listSwitchableBusinesses(): Promise<BusinessSummary[]> {
+  const own = await listUserBusinesses();
+  if (demoMode() || !(await isGlobalSuperAdmin())) return own;
+
+  // Platform-level access. Only SUPER_ADMIN may list all businesses.
+  const all = await getPrisma().business.findMany({ orderBy: { name: "asc" } });
+  return all.map((b) => ({
+    id: b.id,
+    name: b.name,
+    slug: b.slug,
+    // Keep the real membership role where one exists; otherwise the effective
+    // role for a business the admin manages by platform right is SUPER_ADMIN.
+    role: own.find((o) => o.id === b.id)?.role ?? "SUPER_ADMIN",
+  }));
+}
+
 /** Resolve the active businessId from the cookie, else the first membership. */
 export async function getActiveBusinessId(): Promise<string | null> {
-  const businesses = await listUserBusinesses();
-  if (businesses.length === 0) return null;
-
   const cookieStore = await cookies();
   const preferred = cookieStore.get(ACTIVE_BUSINESS_COOKIE)?.value;
+
+  const businesses = await listUserBusinesses();
+
+  // A cookie matching one of the user's own memberships always wins.
   if (preferred && businesses.some((b) => b.id === preferred)) return preferred;
 
-  return businesses[0].id;
+  // Platform admins may pin ANY existing business as the active one.
+  if (preferred && !demoMode() && (await isGlobalSuperAdmin())) {
+    const exists = await getPrisma().business.findUnique({
+      where: { id: preferred },
+      select: { id: true },
+    });
+    if (exists) return preferred;
+  }
+
+  if (businesses.length > 0) return businesses[0].id;
+  return null;
 }
 
 /**
@@ -198,8 +251,17 @@ export async function requireBusinessAccess(opts?: {
     where: { businessId_userId: { businessId, userId: user.id } },
   });
 
-  // SUPER_ADMIN has platform-level access to every business.
+  // SUPER_ADMIN membership in THIS business → platform-level access.
   if (membership?.role === "SUPER_ADMIN") {
+    return { businessId, userId: user.id, role: "SUPER_ADMIN", isDemo: false };
+  }
+
+  // Platform-level access. A global SUPER_ADMIN (SUPER_ADMIN in ANY business)
+  // may act on ANY business, even without a membership row here — this is the
+  // documented cross-business exception (see CLAUDE.md). The businessId is the
+  // server-resolved active business and every downstream query stays scoped by
+  // it; nothing is trusted from the client.
+  if (await isGlobalSuperAdmin()) {
     return { businessId, userId: user.id, role: "SUPER_ADMIN", isDemo: false };
   }
 

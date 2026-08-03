@@ -11,11 +11,26 @@ import {
   isGoogleReviewsAddOnEnabled,
 } from "@/modules/website/google-reviews/queries";
 import { isGoogleReviewsConfigured } from "@/lib/config";
-import { listUserBusinesses, getActiveBusinessId } from "@/lib/auth";
+import { listSwitchableBusinesses, getActiveBusinessId } from "@/lib/auth";
 import { getEnabledModules } from "@/lib/modules";
 import { AdminShell } from "./_components/admin-shell";
+import {
+  ADMIN_SECTIONS,
+  type AdminSectionId,
+} from "./_components/admin-sections";
 
-export default async function AdminPage() {
+/** Coerce the ?tab= query into a known section id (defaults to overview). */
+function tabToSection(tab: string | undefined): AdminSectionId {
+  const match = ADMIN_SECTIONS.find((s) => s.id === tab);
+  return match ? match.id : "overview";
+}
+
+export default async function AdminPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tab?: string }>;
+}) {
+  const initialSection = tabToSection((await searchParams).tab);
   // Each query verifies the session and scopes by the active businessId.
   // getWebsitePagesWithSections is itself gated by the WEBSITE module and
   // returns [] when it is disabled, so loading it here never leaks content.
@@ -40,7 +55,7 @@ export default async function AdminPage() {
     getGoogleReviewSettings(),
     getCachedGoogleReviewsAdmin(),
     isGoogleReviewsAddOnEnabled(),
-    listUserBusinesses(),
+    listSwitchableBusinesses(),
     getActiveBusinessId(),
     getEnabledModules(),
   ]);
@@ -62,6 +77,7 @@ export default async function AdminPage() {
       businesses={businesses.map((b) => ({ id: b.id, name: b.name, role: b.role }))}
       activeBusinessId={activeId}
       enabledModules={Array.from(enabledModules)}
+      initialSection={initialSection}
     />
   );
 }

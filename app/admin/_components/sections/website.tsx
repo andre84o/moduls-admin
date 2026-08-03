@@ -1,35 +1,39 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
-import { Plus, Trash2, Eye, EyeOff, Save, Send, Sparkles } from "lucide-react";
+import { useState, useTransition, type ComponentType } from "react";
 import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+  Eye,
+  EyeOff,
+  Save,
+  Send,
+  Sparkles,
+  Globe,
+  Menu as MenuIcon,
+  Megaphone,
+  Images,
+  Star,
+  PanelBottom,
+  CalendarCheck,
+  LayoutTemplate,
+  User,
+  MapPin,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { cn } from "@/lib/utils";
 import {
-  createWebsitePage,
   publishWebsitePage,
-  deleteWebsitePage,
-  createWebsiteSection,
   updateWebsiteSectionDraft,
   setWebsiteSectionVisibility,
   publishWebsiteSection,
-  deleteWebsiteSection,
   syncDefaultHomeWebsiteContent,
 } from "@/modules/website/actions";
 import type {
@@ -38,33 +42,103 @@ import type {
   WebsiteContent,
 } from "@/modules/website/types";
 import {
-  KNOWN_SECTION_TYPES,
-  isKnownSectionType,
+  hasFieldEditor,
   validateSectionContent,
   SectionFields,
   type SectionContent,
 } from "./website-section-fields";
 
 /**
- * Admin Website Content editor.
+ * Admin Website Content editor — SPLIT VIEW.
  *
- * A CONTROLLED editor — not a free page builder. It lists the business's
- * website pages, the sections of the selected page, and edits each section's
- * DRAFT content. Known section types get typed field editors (Phase 8E); a JSON
- * textarea remains an advanced fallback and the only editor for unknown types.
- * Every write goes through the existing modules/website server actions, which
- * resolve businessId server-side and enforce the WEBSITE module guard — this
+ * A CONTROLLED editor, not a free page builder. The page's sections are listed
+ * in a left rail (with plain-language names and a live/draft dot); the right
+ * panel edits the selected section's DRAFT content through friendly typed
+ * fields. Technical concepts (section `type` strings, JSON) are hidden by
+ * default — a raw-JSON escape hatch only appears for section types that have no
+ * field editor. Every write goes through the tenant-scoped modules/website
+ * server actions (WEBSITE guard, businessId resolved server-side); this
  * component never sends a businessId.
- *
- * Section `type` is chosen from the known public section registry so authors
- * cannot invent arbitrary types. Publishing copies draft -> published via the
- * existing publish actions; public rendering is unchanged in this phase.
  */
 
-const pageStatusVariant: Record<"PUBLISHED" | "DRAFT", "default" | "secondary"> = {
-  PUBLISHED: "default",
-  DRAFT: "secondary",
+// ─── Friendly section metadata ────────────────────────────────────────
+// Maps the stored `type` string to a human name, one-line help, and an icon.
+// This is the only place the raw type strings are translated for the UI.
+
+type SectionMeta = {
+  label: string;
+  help: string;
+  icon: ComponentType<{ className?: string }>;
 };
+
+const SECTION_META: Record<string, SectionMeta> = {
+  siteHeader: {
+    label: "Menu & header",
+    help: "Your logo and the links at the top of every page.",
+    icon: MenuIcon,
+  },
+  hero: {
+    label: "Welcome banner",
+    help: "The big headline visitors see first.",
+    icon: Megaphone,
+  },
+  about: {
+    label: "About",
+    help: "Your story, photo and an optional button.",
+    icon: User,
+  },
+  reviews: {
+    label: "Find us",
+    help: "Location text and an embedded map.",
+    icon: MapPin,
+  },
+  featureGrid: {
+    label: "Highlights",
+    help: "Short selling points shown as cards.",
+    icon: Sparkles,
+  },
+  gallery: {
+    label: "Photo gallery",
+    help: "A grid of your photos.",
+    icon: Images,
+  },
+  googleReviews: {
+    label: "Customer reviews",
+    help: "Star ratings pulled automatically from Google.",
+    icon: Star,
+  },
+  bookingBanner: {
+    label: "Booking messages",
+    help: "The confirmation text shown after a booking.",
+    icon: CalendarCheck,
+  },
+  siteFooter: {
+    label: "Footer",
+    help: "The small print at the bottom of every page.",
+    icon: PanelBottom,
+  },
+};
+
+// Prettify an unknown type ("customThing" → "Custom thing") for a fallback name.
+function prettifyType(type: string): string {
+  const spaced = type
+    .replace(/[_-]+/g, " ")
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .trim();
+  return spaced ? spaced.charAt(0).toUpperCase() + spaced.slice(1) : type;
+}
+
+function metaFor(type: string): SectionMeta {
+  return (
+    SECTION_META[type] ?? {
+      label: prettifyType(type),
+      help: "Custom section.",
+      icon: LayoutTemplate,
+    }
+  );
+}
+
+// ─── content helpers ──────────────────────────────────────────────────
 
 // Stable compare of two JSON contents to detect unpublished draft changes.
 function sameContent(a: WebsiteContent, b: WebsiteContent): boolean {
@@ -76,47 +150,37 @@ function prettyJson(v: WebsiteContent): string {
   return v == null ? "{}" : JSON.stringify(v, null, 2);
 }
 
+// Section status → one of three plain-language states for dots and pills.
+type SectionState = "draft" | "live" | "hidden";
+function sectionState(section: AdminWebsiteSection): SectionState {
+  if (!sameContent(section.draftContent, section.publishedContent))
+    return "draft";
+  return section.isVisible ? "live" : "hidden";
+}
+
 export function WebsiteSection({
   pages,
 }: {
   pages: AdminWebsitePageWithSections[];
 }) {
-  const newPageForm = useRef<HTMLFormElement>(null);
   const [isPending, startTransition] = useTransition();
-  const [selectedId, setSelectedId] = useState<string | null>(
+  const [selectedPageId, setSelectedPageId] = useState<string | null>(
     pages[0]?.id ?? null,
   );
-  // `pageError` belongs to the New page form; `editorError` to the selected
-  // page panel (add section / publish page), shown next to those controls.
-  const [pageError, setPageError] = useState<string | null>(null);
+  const [selectedSectionId, setSelectedSectionId] = useState<string | null>(
+    pages[0]?.sections[0]?.id ?? null,
+  );
   const [editorError, setEditorError] = useState<string | null>(null);
   // Result/error of the "default Home content" create-missing-only sync.
   const [seedResult, setSeedResult] = useState<string | null>(null);
   const [seedError, setSeedError] = useState<string | null>(null);
 
-  // Keep the selection valid as the page list changes after revalidation.
-  const selected =
-    pages.find((p) => p.id === selectedId) ?? pages[0] ?? null;
-
-  function handleCreatePage(formData: FormData) {
-    const title = String(formData.get("title") ?? "").trim();
-    const key = String(formData.get("key") ?? "").trim();
-    const slug = String(formData.get("slug") ?? "").trim();
-    if (!title || !key) {
-      setPageError("Title and key are required.");
-      return;
-    }
-    setPageError(null);
-    startTransition(async () => {
-      const res = await createWebsitePage({ title, key, slug: slug || null });
-      if (res?.error) {
-        setPageError(res.error);
-      } else {
-        if (res?.id) setSelectedId(res.id);
-        newPageForm.current?.reset();
-      }
-    });
-  }
+  // Keep the selection valid as the page/section lists change after revalidation.
+  const selectedPage =
+    pages.find((p) => p.id === selectedPageId) ?? pages[0] ?? null;
+  const sections = selectedPage?.sections ?? [];
+  const selectedSection =
+    sections.find((s) => s.id === selectedSectionId) ?? sections[0] ?? null;
 
   function handleSyncHome() {
     setSeedError(null);
@@ -130,254 +194,235 @@ export function WebsiteSection({
       setSeedResult(
         [
           res.createdPage ? "Created Home page." : "Home page already existed.",
-          `Created ${res.createdSections} section${res.createdSections === 1 ? "" : "s"}.`,
-          `Skipped ${res.skippedSections} existing.`,
+          `Added ${res.createdSections} section${res.createdSections === 1 ? "" : "s"}.`,
         ].join(" "),
       );
     });
   }
 
-  function handleAddSection(formData: FormData) {
-    if (!selected) return;
-    const type = String(formData.get("type") ?? "").trim();
-    if (!type) return;
-    setEditorError(null);
-    startTransition(async () => {
-      const res = await createWebsiteSection({
-        pageId: selected.id,
-        type,
-        draftContent: {},
-      });
-      if (res?.error) setEditorError(res.error);
-    });
-  }
-
   return (
     <div>
-      <header className="mb-8">
-        <h1 className="text-2xl font-semibold tracking-tight">Website</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Manage your website pages and their content sections. Edits are saved
-          as a draft; publish to make them live.
-        </p>
+      <header className="mb-6 flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Website</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Edit the sections of your website. Changes are saved as a draft;
+            publish to make them live.
+          </p>
+        </div>
+        {pages.length > 1 ? (
+          <Select
+            value={selectedPage?.id}
+            onValueChange={(value) => {
+              if (!value) return;
+              setSelectedPageId(value);
+              setSelectedSectionId(null);
+              setEditorError(null);
+            }}
+          >
+            <SelectTrigger className="min-w-40" aria-label="Page">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {pages.map((p) => (
+                <SelectItem key={p.id} value={p.id}>
+                  {p.title}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : null}
       </header>
 
-      {/* Default Home content — create-missing-only seed from config */}
-      <Card className="mb-8">
-        <CardHeader>
-          <CardTitle>Default content</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="mb-4 text-sm text-muted-foreground">
-            Create the Home page and its default sections from the built-in
-            template. This only adds what is missing — it never overwrites
-            existing pages or sections.
-          </p>
-          <Button
-            variant="outline"
-            disabled={isPending}
-            onClick={handleSyncHome}
-          >
-            <Sparkles className="size-4" />
-            {isPending ? "Working…" : "Create default Home content"}
-          </Button>
-          {seedResult ? (
-            <p className="mt-2 text-sm text-muted-foreground">{seedResult}</p>
-          ) : null}
-          {seedError ? (
-            <p className="mt-2 text-sm text-destructive">{seedError}</p>
-          ) : null}
-        </CardContent>
-      </Card>
-
-      {/* New page */}
-      <Card className="mb-8">
-        <CardHeader>
-          <CardTitle>New page</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form
-            ref={newPageForm}
-            action={handleCreatePage}
-            className="grid gap-4 sm:grid-cols-3"
-          >
-            <div>
-              <Label htmlFor="page-title">Title</Label>
-              <Input id="page-title" name="title" required className="mt-1.5" />
-            </div>
-            <div>
-              <Label htmlFor="page-key">Key</Label>
-              <Input
-                id="page-key"
-                name="key"
-                required
-                placeholder="home"
-                className="mt-1.5"
-              />
-            </div>
-            <div>
-              <Label htmlFor="page-slug">Slug (optional)</Label>
-              <Input id="page-slug" name="slug" className="mt-1.5" />
-            </div>
-            <div className="sm:col-span-3">
-              <Button type="submit" disabled={isPending}>
-                <Plus className="size-4" />
-                {isPending ? "Saving…" : "Add page"}
-              </Button>
-              {pageError ? (
-                <p className="mt-2 text-sm text-destructive">{pageError}</p>
-              ) : null}
-            </div>
-          </form>
-        </CardContent>
-      </Card>
-
-      {/* Page list */}
-      <Card className="mb-8 overflow-hidden p-0">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="text-xs">Title</TableHead>
-              <TableHead className="text-xs">Key</TableHead>
-              <TableHead className="text-xs">Slug</TableHead>
-              <TableHead className="text-xs">Status</TableHead>
-              <TableHead className="text-xs">Sections</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {pages.length === 0 ? (
-              <TableRow>
-                <TableCell
-                  colSpan={5}
-                  className="py-10 text-center text-sm text-muted-foreground"
-                >
-                  No pages yet. Create your first one above.
-                </TableCell>
-              </TableRow>
-            ) : (
-              pages.map((p) => (
-                <TableRow
-                  key={p.id}
-                  data-state={selected?.id === p.id ? "selected" : undefined}
-                  className="cursor-pointer"
+      {pages.length === 0 ? (
+        <EmptyState
+          isPending={isPending}
+          onSeed={handleSyncHome}
+          seedResult={seedResult}
+          seedError={seedError}
+        />
+      ) : (
+        <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
+          {/* Left rail — page + section list */}
+          <div className="space-y-4">
+            {selectedPage ? (
+              <div className="flex items-center justify-between gap-2 rounded-lg border bg-card px-3 py-2.5">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium">
+                    {selectedPage.title}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {selectedPage.status === "PUBLISHED" ? "Published" : "Draft"}
+                    {" · "}
+                    {selectedPage.sections.length} section
+                    {selectedPage.sections.length === 1 ? "" : "s"}
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  disabled={isPending}
                   onClick={() => {
-                    setSelectedId(p.id);
                     setEditorError(null);
+                    startTransition(async () => {
+                      const res = await publishWebsitePage(selectedPage.id);
+                      if (res?.error) setEditorError(res.error);
+                    });
                   }}
                 >
-                  <TableCell className="text-sm font-medium">{p.title}</TableCell>
-                  <TableCell className="text-sm text-muted-foreground">
-                    {p.key}
-                  </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">
-                    {p.slug ?? "—"}
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={pageStatusVariant[p.status]}>
-                      {p.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-sm tabular-nums text-muted-foreground">
-                    {p.sections.length}
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </Card>
-
-      {/* Selected page editor */}
-      {selected ? (
-        <Card>
-          <CardHeader className="flex-row items-start justify-between gap-3">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                {selected.title}
-                <Badge variant={pageStatusVariant[selected.status]}>
-                  {selected.status}
-                </Badge>
-              </CardTitle>
-              <p className="mt-1 text-sm text-muted-foreground">
-                {selected.key}
-                {selected.slug ? ` · /${selected.slug}` : ""}
-              </p>
-            </div>
-            <div className="flex gap-2">
-              <Button
-                size="sm"
-                disabled={isPending}
-                onClick={() => {
-                  setEditorError(null);
-                  startTransition(async () => {
-                    const res = await publishWebsitePage(selected.id);
-                    if (res?.error) setEditorError(res.error);
-                  });
-                }}
-              >
-                <Send className="size-4" />
-                Publish page
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                aria-label="Delete page"
-                disabled={isPending}
-                onClick={() =>
-                  startTransition(() => deleteWebsitePage(selected.id))
-                }
-              >
-                <Trash2 className="size-4 text-destructive" />
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {/* Add section */}
-            <form
-              action={handleAddSection}
-              className="flex flex-wrap items-end gap-2 border-b pb-4"
-            >
-              <div>
-                <Label htmlFor="section-type">Add section</Label>
-                <select
-                  id="section-type"
-                  name="type"
-                  defaultValue={KNOWN_SECTION_TYPES[0]}
-                  className="mt-1.5 h-8 w-48 rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm transition-colors outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
-                >
-                  {KNOWN_SECTION_TYPES.map((t) => (
-                    <option key={t} value={t}>
-                      {t}
-                    </option>
-                  ))}
-                </select>
+                  <Globe className="size-4" />
+                  Publish
+                </Button>
               </div>
-              <Button type="submit" variant="outline" size="sm" disabled={isPending}>
-                <Plus className="size-4" />
-                Add
-              </Button>
-            </form>
-
-            {editorError ? (
-              <p className="text-sm text-destructive">{editorError}</p>
             ) : null}
 
-            {selected.sections.length === 0 ? (
-              <p className="py-6 text-center text-sm text-muted-foreground">
-                No sections yet. Add one above.
-              </p>
+            <div className="rounded-lg border bg-card">
+              <div className="flex items-center justify-between px-3 py-2.5">
+                <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Sections
+                </span>
+              </div>
+              <div className="space-y-1 px-2 pb-2">
+                {sections.length === 0 ? (
+                  <p className="px-2 py-4 text-center text-xs text-muted-foreground">
+                    No sections on this page.
+                  </p>
+                ) : (
+                  sections.map((section) => {
+                    const meta = metaFor(section.type);
+                    const Icon = meta.icon;
+                    const active = selectedSection?.id === section.id;
+                    const state = sectionState(section);
+                    return (
+                      <button
+                        key={section.id}
+                        onClick={() => {
+                          setSelectedSectionId(section.id);
+                          setEditorError(null);
+                        }}
+                        className={cn(
+                          "flex w-full items-center gap-2.5 rounded-md px-2 py-2 text-left transition-colors",
+                          active ? "bg-secondary" : "hover:bg-muted",
+                        )}
+                      >
+                        <Icon className="size-4 shrink-0 text-muted-foreground" />
+                        <span className="flex-1 truncate text-sm font-medium">
+                          {meta.label}
+                        </span>
+                        <StateDot state={state} />
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Right panel — the selected section editor */}
+          <div>
+            {editorError ? (
+              <p className="mb-3 text-sm text-destructive">{editorError}</p>
+            ) : null}
+            {selectedSection ? (
+              <SectionEditor
+                // Remount on server-confirmed change so the fields resync.
+                key={`${selectedSection.id}:${selectedSection.updatedAt}`}
+                section={selectedSection}
+              />
             ) : (
-              selected.sections.map((section) => (
-                <SectionEditor
-                  // Remount on server-confirmed change so the textarea resyncs.
-                  key={`${section.id}:${section.updatedAt}`}
-                  section={section}
-                />
-              ))
+              <div className="grid h-full min-h-64 place-items-center rounded-lg border border-dashed bg-card/50 p-8 text-center">
+                <div>
+                  <LayoutTemplate className="mx-auto mb-2 size-6 text-muted-foreground" />
+                  <p className="text-sm text-muted-foreground">
+                    Select a section to start editing this page.
+                  </p>
+                </div>
+              </div>
             )}
-          </CardContent>
-        </Card>
-      ) : null}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── small presentational pieces ──────────────────────────────────────
+
+function StateDot({ state }: { state: SectionState }) {
+  if (state === "draft")
+    return (
+      <span
+        className="size-2 shrink-0 rounded-full bg-amber-500"
+        aria-label="Draft changes"
+      />
+    );
+  if (state === "live")
+    return (
+      <span
+        className="size-2 shrink-0 rounded-full bg-emerald-500"
+        aria-label="Live"
+      />
+    );
+  return (
+    <EyeOff
+      className="size-3.5 shrink-0 text-muted-foreground/50"
+      aria-label="Hidden"
+    />
+  );
+}
+
+function StatePill({ state }: { state: SectionState }) {
+  if (state === "draft")
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700 ring-1 ring-amber-200">
+        Draft changes
+      </span>
+    );
+  if (state === "live")
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 ring-1 ring-emerald-200">
+        <span className="size-2 rounded-full bg-emerald-500" />
+        Live
+      </span>
+    );
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-500 ring-1 ring-slate-200">
+      <EyeOff className="size-3" />
+      Hidden
+    </span>
+  );
+}
+
+function EmptyState({
+  isPending,
+  onSeed,
+  seedResult,
+  seedError,
+}: {
+  isPending: boolean;
+  onSeed: () => void;
+  seedResult: string | null;
+  seedError: string | null;
+}) {
+  return (
+    <div className="grid place-items-center rounded-xl border border-dashed bg-card/50 p-12 text-center">
+      <div className="max-w-md">
+        <Globe className="mx-auto mb-3 size-8 text-muted-foreground" />
+        <h2 className="text-lg font-semibold">Set up your website</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Start from the built-in template — it creates a Home page with the
+          standard sections you can then edit. Nothing is overwritten.
+        </p>
+        <Button className="mt-5" disabled={isPending} onClick={onSeed}>
+          <Sparkles className="size-4" />
+          {isPending ? "Working…" : "Create default website"}
+        </Button>
+        {seedResult ? (
+          <p className="mt-3 text-sm text-muted-foreground">{seedResult}</p>
+        ) : null}
+        {seedError ? (
+          <p className="mt-3 text-sm text-destructive">{seedError}</p>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -390,28 +435,28 @@ function asContentObject(v: WebsiteContent): SectionContent {
 }
 
 /**
- * One section's draft editor. Known section types render typed field editors
- * (Title, Text, Button link, …); an "Advanced (JSON)" toggle exposes the raw
- * JSON, which is also the only editor for unknown types. Save validates the
- * required fields (or the JSON) and writes via the tenant-scoped server action.
+ * The right-hand editor for one section. Sections with a field editor render
+ * friendly labelled fields (Title, Text, Photos, …); an "Advanced (JSON)" toggle
+ * exposes the raw JSON, which is also the only editor for types without one.
+ * Save validates then writes via the tenant-scoped server action.
  */
 function SectionEditor({ section }: { section: AdminWebsiteSection }) {
-  const known = isKnownSectionType(section.type);
+  const meta = metaFor(section.type);
+  const known = hasFieldEditor(section.type);
   const [content, setContent] = useState<SectionContent>(() =>
     asContentObject(section.draftContent),
   );
-  // Advanced JSON mode: always on for unknown types, opt-in for known types.
+  // Advanced JSON mode: always on for types without a field editor, opt-in else.
   const [advanced, setAdvanced] = useState(!known);
-  const [jsonText, setJsonText] = useState(() => prettyJson(section.draftContent));
+  const [jsonText, setJsonText] = useState(() =>
+    prettyJson(section.draftContent),
+  );
   const [jsonError, setJsonError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   const showJson = advanced;
-  const unpublished = !sameContent(
-    section.draftContent,
-    section.publishedContent,
-  );
+  const state = sectionState(section);
 
   function toggleAdvanced() {
     if (!advanced) {
@@ -423,8 +468,7 @@ function SectionEditor({ section }: { section: AdminWebsiteSection }) {
       return;
     }
     // Leaving advanced: adopt the JSON into typed content. Block the switch
-    // (keep JSON open) when the JSON is invalid OR is not a plain object, since
-    // the typed fields can only represent an object — never silently drop it.
+    // (keep JSON open) when the JSON is invalid OR is not a plain object.
     let parsed: unknown;
     try {
       parsed = jsonText.trim() === "" ? {} : JSON.parse(jsonText);
@@ -461,7 +505,9 @@ function SectionEditor({ section }: { section: AdminWebsiteSection }) {
     if (showJson) {
       try {
         toSave =
-          jsonText.trim() === "" ? {} : (JSON.parse(jsonText) as WebsiteContent);
+          jsonText.trim() === ""
+            ? {}
+            : (JSON.parse(jsonText) as WebsiteContent);
       } catch {
         setError("Invalid JSON — fix the syntax and try again.");
         return;
@@ -472,8 +518,6 @@ function SectionEditor({ section }: { section: AdminWebsiteSection }) {
         setError(invalid);
         return;
       }
-      // Field editors only ever write JSON-serializable values (strings,
-      // booleans, arrays of objects); safe to treat as WebsiteContent.
       toSave = content as WebsiteContent;
     }
     setError(null);
@@ -494,26 +538,25 @@ function SectionEditor({ section }: { section: AdminWebsiteSection }) {
     });
   }
 
+  const Icon = meta.icon;
+
   return (
-    <div className="rounded-lg border p-4">
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-medium">{section.type}</span>
-          <Badge variant="outline" className="tabular-nums">
-            #{section.sortOrder}
-          </Badge>
-          {section.isVisible ? (
-            <Badge variant="secondary">Visible</Badge>
-          ) : (
-            <Badge variant="outline">Hidden</Badge>
-          )}
-          {unpublished ? (
-            <Badge variant="default">Unpublished changes</Badge>
-          ) : (
-            <Badge variant="secondary">Published</Badge>
-          )}
+    <div className="rounded-xl border bg-card">
+      {/* Header */}
+      <div className="flex items-start justify-between gap-3 border-b p-5">
+        <div className="flex items-start gap-3">
+          <div className="grid size-10 shrink-0 place-items-center rounded-lg bg-muted text-muted-foreground">
+            <Icon className="size-5" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="font-semibold">{meta.label}</h3>
+              <StatePill state={state} />
+            </div>
+            <p className="text-sm text-muted-foreground">{meta.help}</p>
+          </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2">
           {known ? (
             <Button
               variant="ghost"
@@ -521,7 +564,7 @@ function SectionEditor({ section }: { section: AdminWebsiteSection }) {
               disabled={isPending}
               onClick={toggleAdvanced}
             >
-              {advanced ? "Fields" : "Advanced (JSON)"}
+              {advanced ? "Simple" : "Advanced"}
             </Button>
           ) : null}
           <Button
@@ -546,50 +589,49 @@ function SectionEditor({ section }: { section: AdminWebsiteSection }) {
               </>
             )}
           </Button>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-label="Delete section"
-            disabled={isPending}
-            onClick={() =>
-              startTransition(() => deleteWebsiteSection(section.id))
-            }
-          >
-            <Trash2 className="size-4 text-destructive" />
-          </Button>
         </div>
       </div>
 
-      {showJson ? (
-        <>
-          <Label htmlFor={`draft-${section.id}`} className="text-xs">
-            Draft content (JSON){known ? " — advanced" : ""}
-          </Label>
-          <Textarea
-            id={`draft-${section.id}`}
-            value={jsonText}
-            onChange={(e) => onJsonChange(e.target.value)}
-            spellCheck={false}
-            className="mt-1.5 min-h-40 font-mono text-xs"
+      {/* Body */}
+      <div className="p-5">
+        {showJson ? (
+          <>
+            {!hasFieldEditor(section.type) ? (
+              <p className="mb-2 text-xs text-muted-foreground">
+                This section type has no simple editor yet — edit its content as
+                JSON below.
+              </p>
+            ) : null}
+            <Label htmlFor={`draft-${section.id}`} className="text-xs">
+              Content (JSON)
+            </Label>
+            <Textarea
+              id={`draft-${section.id}`}
+              value={jsonText}
+              onChange={(e) => onJsonChange(e.target.value)}
+              spellCheck={false}
+              className="mt-1.5 min-h-48 font-mono text-xs"
+            />
+            {jsonError ? (
+              <p className="mt-2 text-sm text-destructive">{jsonError}</p>
+            ) : null}
+          </>
+        ) : (
+          <SectionFields
+            id={`sf-${section.id}`}
+            type={section.type}
+            content={content}
+            onChange={setContent}
           />
-          {jsonError ? (
-            <p className="mt-2 text-sm text-destructive">{jsonError}</p>
-          ) : null}
-        </>
-      ) : (
-        <SectionFields
-          id={`sf-${section.id}`}
-          type={section.type}
-          content={content}
-          onChange={setContent}
-        />
-      )}
+        )}
 
-      {error ? (
-        <p className="mt-2 text-sm text-destructive">{error}</p>
-      ) : null}
+        {error ? (
+          <p className="mt-3 text-sm text-destructive">{error}</p>
+        ) : null}
+      </div>
 
-      <div className="mt-3 flex gap-2">
+      {/* Footer actions */}
+      <div className="flex items-center justify-end gap-2 border-t bg-muted/30 px-5 py-3">
         <Button size="sm" disabled={isPending} onClick={saveDraft}>
           <Save className="size-4" />
           {isPending ? "Saving…" : "Save draft"}

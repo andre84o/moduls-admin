@@ -4,7 +4,12 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "./supabase";
 import { isSupabaseConfigured, isDemoMode } from "./config";
-import { ACTIVE_BUSINESS_COOKIE, listUserBusinesses } from "./auth";
+import {
+  ACTIVE_BUSINESS_COOKIE,
+  listUserBusinesses,
+  isGlobalSuperAdmin,
+} from "./auth";
+import { getPrisma } from "./prisma";
 
 /**
  * Session mutations (server actions). Real auth runs through Supabase Auth;
@@ -47,10 +52,24 @@ export async function logout() {
   redirect("/login");
 }
 
-/** Switch the active business (must be one the user actually belongs to). */
+/**
+ * Switch the active business. Regular users may only switch to a business they
+ * belong to. A PLATFORM SUPER_ADMIN may switch to ANY existing business — the
+ * documented cross-business exception (see CLAUDE.md), checked server-side.
+ */
 export async function switchBusiness(businessId: string) {
   const businesses = await listUserBusinesses();
-  if (!businesses.some((b) => b.id === businessId)) return;
+  let permitted = businesses.some((b) => b.id === businessId);
+
+  if (!permitted && !isDemoMode() && (await isGlobalSuperAdmin())) {
+    // Platform-level access. Only SUPER_ADMIN may target a non-member business.
+    const exists = await getPrisma().business.findUnique({
+      where: { id: businessId },
+      select: { id: true },
+    });
+    permitted = exists !== null;
+  }
+  if (!permitted) return;
 
   const cookieStore = await cookies();
   cookieStore.set(ACTIVE_BUSINESS_COOKIE, businessId, {
