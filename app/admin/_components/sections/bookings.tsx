@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import {
   createBooking,
   setBookingStatus,
@@ -213,14 +214,19 @@ export function BookingsSection({
                         </Button>
                       </>
                     )}
-                    <Button
-                      size="sm"
-                      variant="ghost"
+                    <ConfirmDialog
+                      trigger={
+                        <Button size="sm" variant="ghost" disabled={isPending}>
+                          Delete
+                        </Button>
+                      }
+                      title="Delete booking?"
+                      confirmLabel="Delete"
+                      onConfirm={() =>
+                        startTransition(() => deleteBooking(b.id))
+                      }
                       disabled={isPending}
-                      onClick={() => startTransition(() => deleteBooking(b.id))}
-                    >
-                      Delete
-                    </Button>
+                    />
                   </div>
                 </CardHeader>
                 <CardContent>

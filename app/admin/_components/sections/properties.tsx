@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import {
   createProperty,
   updateProperty,
@@ -340,15 +341,25 @@ export function PropertiesSection({
                   >
                     {p.status === "PUBLISHED" ? "Unpublish" : "Publish"}
                   </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label="Delete"
+                  <ConfirmDialog
+                    trigger={
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label="Delete"
+                        disabled={isPending}
+                      >
+                        <Trash2 className="size-4 text-destructive" />
+                      </Button>
+                    }
+                    title="Delete property?"
+                    description="This permanently deletes the property and its images."
+                    confirmLabel="Delete"
+                    onConfirm={() =>
+                      startTransition(() => deleteProperty(p.id))
+                    }
                     disabled={isPending}
-                    onClick={() => startTransition(() => deleteProperty(p.id))}
-                  >
-                    <Trash2 className="size-4 text-destructive" />
-                  </Button>
+                  />
                 </div>
               </CardHeader>
               <CardContent>
@@ -430,16 +441,23 @@ export function PropertiesSection({
                         alt={img.alt ?? p.title}
                         className="size-20 rounded-md object-cover"
                       />
-                      <button
-                        type="button"
-                        onClick={() =>
+                      <ConfirmDialog
+                        trigger={
+                          <button
+                            type="button"
+                            className="absolute -right-1.5 -top-1.5 rounded-full bg-destructive p-1 text-white opacity-0 transition group-hover:opacity-100"
+                            aria-label="Remove image"
+                          >
+                            <Trash2 className="size-3" />
+                          </button>
+                        }
+                        title="Remove image?"
+                        confirmLabel="Remove"
+                        onConfirm={() =>
                           startTransition(() => deleteMedia(img.id))
                         }
-                        className="absolute -right-1.5 -top-1.5 rounded-full bg-destructive p-1 text-white opacity-0 transition group-hover:opacity-100"
-                        aria-label="Remove image"
-                      >
-                        <Trash2 className="size-3" />
-                      </button>
+                        disabled={isPending}
+                      />
                     </div>
                   ))}
 

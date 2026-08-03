@@ -3,6 +3,7 @@
 import { useTransition } from "react";
 import { FileText, Download, Trash2 } from "lucide-react";
 import { deleteMediaItem } from "@/lib/media-actions";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { Button } from "@/components/ui/button";
 import { cn, formatBytes } from "@/lib/utils";
 import type { MediaItem } from "@/lib/media";
@@ -112,17 +113,24 @@ function MediaCard({
       </a>
 
       {canDelete ? (
-        <Button
-          type="button"
-          variant="destructive"
-          size="icon-xs"
-          aria-label={`Delete ${title}`}
+        <ConfirmDialog
+          trigger={
+            <Button
+              type="button"
+              variant="destructive"
+              size="icon-xs"
+              aria-label={`Delete ${title}`}
+              disabled={disabled}
+              className="absolute right-1.5 top-1.5 opacity-0 transition group-hover:opacity-100"
+            >
+              <Trash2 className="size-3" />
+            </Button>
+          }
+          title="Delete file?"
+          confirmLabel="Delete"
+          onConfirm={onDelete}
           disabled={disabled}
-          onClick={onDelete}
-          className="absolute right-1.5 top-1.5 opacity-0 transition group-hover:opacity-100"
-        >
-          <Trash2 className="size-3" />
-        </Button>
+        />
       ) : null}
     </div>
   );

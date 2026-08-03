@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 
 /**
  * Typed field editors for the known Website section types (Phase 8E).
@@ -313,15 +314,6 @@ function SiteHeaderFields({
       <div>
         <div className="mb-2 flex items-center justify-between">
           <Label className="text-xs">Navigation links</Label>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => commit([...nav, { label: "", href: "", external: false }])}
-          >
-            <Plus className="size-4" />
-            Add link
-          </Button>
         </div>
         {nav.length === 0 ? (
           <p className="text-xs text-muted-foreground">No navigation links yet.</p>
@@ -356,15 +348,6 @@ function SiteHeaderFields({
                     />
                     External
                   </label>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label="Remove link"
-                    onClick={() => commit(nav.filter((_, idx) => idx !== i))}
-                  >
-                    <Trash2 className="size-4 text-destructive" />
-                  </Button>
                 </div>
               </div>
             ))}
@@ -419,15 +402,6 @@ function FeatureGridFields({
     <div>
       <div className="mb-2 flex items-center justify-between">
         <Label className="text-xs">Feature cards</Label>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={() => commit([...items, { title: "", text: "" }])}
-        >
-          <Plus className="size-4" />
-          Add card
-        </Button>
       </div>
       {items.length === 0 ? (
         <p className="text-xs text-muted-foreground">No feature cards yet.</p>
@@ -439,15 +413,6 @@ function FeatureGridFields({
                 <span className="text-xs font-medium text-muted-foreground">
                   Card {i + 1}
                 </span>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label="Remove card"
-                  onClick={() => commit(items.filter((_, idx) => idx !== i))}
-                >
-                  <Trash2 className="size-4 text-destructive" />
-                </Button>
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
                 <Field label="Title" htmlFor={`${id}-feat-${i}-title`}>
@@ -565,33 +530,6 @@ function GoogleReviewsFields({
   );
 }
 
-// Small light/dark background picker shared by the content sections that carry
-// a `tone` key. Kept inline (native select) to match the other simple controls.
-function ToneField({
-  id,
-  content,
-  onChange,
-}: {
-  id: string;
-  content: SectionContent;
-  onChange: (next: SectionContent) => void;
-}) {
-  const tone = str(content.tone) || "light";
-  return (
-    <Field label="Background" htmlFor={`${id}-tone`} className="max-w-40">
-      <select
-        id={`${id}-tone`}
-        value={tone}
-        onChange={(e) => onChange({ ...content, tone: e.target.value })}
-        className="h-9 w-full rounded-md border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
-      >
-        <option value="light">Light</option>
-        <option value="dark">Dark</option>
-      </select>
-    </Field>
-  );
-}
-
 function AboutFields({
   id,
   content,
@@ -649,20 +587,9 @@ function AboutFields({
         </Field>
       </div>
 
-      <ToneField id={id} content={content} onChange={onChange} />
-
       <div>
         <div className="mb-2 flex items-center justify-between">
           <Label className="text-xs">Paragraphs</Label>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => commit([...paras, { text: "" }])}
-          >
-            <Plus className="size-4" />
-            Add paragraph
-          </Button>
         </div>
         {paras.length === 0 ? (
           <p className="text-xs text-muted-foreground">No paragraphs yet.</p>
@@ -681,15 +608,6 @@ function AboutFields({
                   }
                   className="min-h-20"
                 />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label="Remove paragraph"
-                  onClick={() => commit(paras.filter((_, idx) => idx !== i))}
-                >
-                  <Trash2 className="size-4 text-destructive" />
-                </Button>
               </div>
             ))}
           </div>
@@ -782,7 +700,6 @@ function ReviewsFields({
           />
         </Field>
       </div>
-      <ToneField id={id} content={content} onChange={onChange} />
     </div>
   );
 }
@@ -804,8 +721,6 @@ function GalleryFields({
 
   return (
     <div className="space-y-4">
-      <ToneField id={id} content={content} onChange={onChange} />
-
       <div>
         <div className="mb-2 flex items-center justify-between">
           <Label className="text-xs">Photos</Label>
@@ -866,15 +781,22 @@ function GalleryFields({
                       />
                     </Field>
                   </div>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label="Remove image"
-                    onClick={() => commit(items.filter((_, idx) => idx !== i))}
-                  >
-                    <Trash2 className="size-4 text-destructive" />
-                  </Button>
+                  <ConfirmDialog
+                    trigger={
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label="Remove image"
+                      >
+                        <Trash2 className="size-4 text-destructive" />
+                      </Button>
+                    }
+                    title="Remove photo?"
+                    description="Removes it from this section."
+                    confirmLabel="Remove"
+                    onConfirm={() => commit(items.filter((_, idx) => idx !== i))}
+                  />
                 </div>
               );
             })}

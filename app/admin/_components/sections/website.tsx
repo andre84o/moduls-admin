@@ -2,7 +2,6 @@
 
 import { useState, useTransition, type ComponentType } from "react";
 import {
-  Eye,
   EyeOff,
   Save,
   Send,
@@ -17,6 +16,7 @@ import {
   LayoutTemplate,
   User,
   MapPin,
+  Code2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -32,7 +32,6 @@ import { cn } from "@/lib/utils";
 import {
   publishWebsitePage,
   updateWebsiteSectionDraft,
-  setWebsiteSectionVisibility,
   publishWebsiteSection,
   syncDefaultHomeWebsiteContent,
 } from "@/modules/website/actions";
@@ -260,6 +259,7 @@ export function WebsiteSection({
                 </div>
                 <Button
                   size="sm"
+                  className="bg-[#FF969D] text-white hover:bg-[#F97882]"
                   disabled={isPending}
                   onClick={() => {
                     setEditorError(null);
@@ -301,10 +301,17 @@ export function WebsiteSection({
                         }}
                         className={cn(
                           "flex w-full items-center gap-2.5 rounded-md px-2 py-2 text-left transition-colors",
-                          active ? "bg-secondary" : "hover:bg-muted",
+                          active
+                            ? "bg-[#FFE3E5] text-[#B4434B]"
+                            : "hover:bg-[#FEE8FF]",
                         )}
                       >
-                        <Icon className="size-4 shrink-0 text-muted-foreground" />
+                        <Icon
+                          className={cn(
+                            "size-4 shrink-0",
+                            active ? "text-[#FF969D]" : "text-muted-foreground",
+                          )}
+                        />
                         <span className="flex-1 truncate text-sm font-medium">
                           {meta.label}
                         </span>
@@ -351,14 +358,14 @@ function StateDot({ state }: { state: SectionState }) {
   if (state === "draft")
     return (
       <span
-        className="size-2 shrink-0 rounded-full bg-amber-500"
+        className="size-2 shrink-0 rounded-full bg-[#FF969D]"
         aria-label="Draft changes"
       />
     );
   if (state === "live")
     return (
       <span
-        className="size-2 shrink-0 rounded-full bg-emerald-500"
+        className="size-2 shrink-0 rounded-full bg-[#3F9E46]"
         aria-label="Live"
       />
     );
@@ -373,14 +380,15 @@ function StateDot({ state }: { state: SectionState }) {
 function StatePill({ state }: { state: SectionState }) {
   if (state === "draft")
     return (
-      <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700 ring-1 ring-amber-200">
+      <span className="inline-flex items-center gap-1.5 rounded-full bg-[#FFE3E5] px-2.5 py-1 text-xs font-medium text-[#B4434B] ring-1 ring-[#FFC7CC]">
+        <span className="size-2 rounded-full bg-[#FF969D]" />
         Draft changes
       </span>
     );
   if (state === "live")
     return (
-      <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 ring-1 ring-emerald-200">
-        <span className="size-2 rounded-full bg-emerald-500" />
+      <span className="inline-flex items-center gap-1.5 rounded-full bg-[#E0FCDE] px-2.5 py-1 text-xs font-medium text-[#2F7D34] ring-1 ring-[#B8ECB6]">
+        <span className="size-2 rounded-full bg-[#3F9E46]" />
         Live
       </span>
     );
@@ -457,6 +465,24 @@ function SectionEditor({ section }: { section: AdminWebsiteSection }) {
 
   const showJson = advanced;
   const state = sectionState(section);
+
+  // Does the editor hold edits not yet written to the draft? (drives Save color)
+  const currentDraft: WebsiteContent | undefined = showJson
+    ? (() => {
+        try {
+          return jsonText.trim() === ""
+            ? {}
+            : (JSON.parse(jsonText) as WebsiteContent);
+        } catch {
+          return undefined; // invalid JSON — treat as unsaved
+        }
+      })()
+    : (content as WebsiteContent);
+  const hasUnsavedEdits =
+    currentDraft === undefined ||
+    !sameContent(currentDraft, section.draftContent);
+  // Draft differs from what's live? (drives Publish color)
+  const hasUnpublished = state === "draft";
 
   function toggleAdvanced() {
     if (!advanced) {
@@ -545,7 +571,7 @@ function SectionEditor({ section }: { section: AdminWebsiteSection }) {
       {/* Header */}
       <div className="flex items-start justify-between gap-3 border-b p-5">
         <div className="flex items-start gap-3">
-          <div className="grid size-10 shrink-0 place-items-center rounded-lg bg-muted text-muted-foreground">
+          <div className="grid size-10 shrink-0 place-items-center rounded-lg bg-[#FEE8FF] text-[#FF969D]">
             <Icon className="size-5" />
           </div>
           <div>
@@ -559,36 +585,19 @@ function SectionEditor({ section }: { section: AdminWebsiteSection }) {
         <div className="flex items-center gap-2">
           {known ? (
             <Button
-              variant="ghost"
+              variant="outline"
               size="sm"
               disabled={isPending}
               onClick={toggleAdvanced}
+              className={cn(
+                "gap-1.5 border-[#FF969D] text-[#B4434B] hover:bg-[#FFE3E5] hover:text-[#B4434B]",
+                advanced && "bg-[#FFE3E5]",
+              )}
             >
+              <Code2 className="size-4" />
               {advanced ? "Simple" : "Advanced"}
             </Button>
           ) : null}
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={isPending}
-            onClick={() =>
-              startTransition(() =>
-                setWebsiteSectionVisibility(section.id, !section.isVisible),
-              )
-            }
-          >
-            {section.isVisible ? (
-              <>
-                <EyeOff className="size-4" />
-                Hide
-              </>
-            ) : (
-              <>
-                <Eye className="size-4" />
-                Show
-              </>
-            )}
-          </Button>
         </div>
       </div>
 
@@ -632,13 +641,28 @@ function SectionEditor({ section }: { section: AdminWebsiteSection }) {
 
       {/* Footer actions */}
       <div className="flex items-center justify-end gap-2 border-t bg-muted/30 px-5 py-3">
-        <Button size="sm" disabled={isPending} onClick={saveDraft}>
+        <Button
+          variant="outline"
+          size="sm"
+          className={cn(
+            hasUnsavedEdits
+              ? "border-transparent bg-[#FF969D] text-white hover:bg-[#F97882] hover:text-white"
+              : "text-muted-foreground",
+          )}
+          disabled={isPending}
+          onClick={saveDraft}
+        >
           <Save className="size-4" />
           {isPending ? "Saving…" : "Save draft"}
         </Button>
         <Button
           variant="outline"
           size="sm"
+          className={cn(
+            hasUnpublished
+              ? "border-transparent bg-[#FF969D] text-white hover:bg-[#F97882] hover:text-white"
+              : "text-muted-foreground",
+          )}
           disabled={isPending}
           onClick={publish}
         >
