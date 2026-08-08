@@ -46,6 +46,8 @@ model Business {
   googleReviewSettings GoogleReviewSettings?
   googleReviewCaches   GoogleReviewCache[]
   featureAccess        BusinessFeatureAccess[]
+  cateringRequests     CateringRequest[]
+  contactMessages      ContactMessage[]
 
   @@map("businesses")
 }
@@ -251,6 +253,52 @@ model CrmNote {
   @@index([businessId])
   @@index([customerId])
   @@map("crm_notes")
+}
+
+/// A catering enquiry submitted from the public website form. Business-owned
+/// (businessId) and tenant-scoped on every read/write. Contains only the plain
+/// contact fields the visitor typed — no HTML is ever rendered from these, and
+/// Prisma parameterises the insert (no SQL injection). `status` tracks handling.
+model CateringRequest {
+  id         String   @id @default(cuid())
+  businessId String
+  name       String
+  email      String
+  phone      String
+  guests     Int?
+  menu       String?
+  message    String   @db.Text
+  status     String   @default("NEW")
+  createdAt  DateTime @default(now())
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([businessId])
+  @@index([businessId, createdAt])
+  @@map("catering_requests")
+}
+
+/// A contact message submitted from the public website form. Contact is a CORE
+/// public feature (every restaurant needs it) and is NOT feature-gated. Business-
+/// owned (businessId) and tenant-scoped on every read/write. Contains only the
+/// plain contact fields the visitor typed — no HTML is ever rendered from these,
+/// and Prisma parameterises the insert (no SQL injection). `status` tracks
+/// handling.
+model ContactMessage {
+  id         String   @id @default(cuid())
+  businessId String
+  name       String
+  email      String
+  phone      String
+  message    String   @db.Text
+  status     String   @default("NEW")
+  createdAt  DateTime @default(now())
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([businessId])
+  @@index([businessId, createdAt])
+  @@map("contact_messages")
 }
 
 // ─── Booking + calendar ───────────────────────────────────────────────
