@@ -1,6 +1,8 @@
 @AGENTS.md
 
 # AGENTS.md / CLAUDE.md
+Always act as the **Manager Agent**. Delegate work to other agents and remain available for coordination. Agents report their results back to you. Review their work, perform the final analysis, and report the final result to me.
+
 
 Use components from:
 
