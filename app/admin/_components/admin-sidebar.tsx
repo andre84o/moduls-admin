@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Settings, ArrowLeft, LogOut } from "lucide-react";
+import { Settings, ArrowLeft, LogOut, Users } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -38,6 +38,7 @@ export function AdminSidebarContent({
   activeSection,
   onSelectSection,
   moduleSettingsActive = false,
+  usersActive = false,
 }: {
   businesses: BusinessOption[];
   activeBusinessId: string | null;
@@ -48,6 +49,7 @@ export function AdminSidebarContent({
   /** When provided, nav items are client buttons; otherwise they are links. */
   onSelectSection?: (id: AdminSectionId) => void;
   moduleSettingsActive?: boolean;
+  usersActive?: boolean;
 }) {
   const visible = visibleAdminSections(enabledModules);
 
@@ -124,6 +126,20 @@ export function AdminSidebarContent({
           >
             <Settings className="size-4" />
             Module Settings
+          </Link>
+        )}
+        {isSuperAdmin && (
+          <Link
+            href="/admin/super/users"
+            className={cn(
+              buttonVariants({
+                variant: usersActive ? "secondary" : "ghost",
+              }),
+              "w-full justify-start gap-3",
+            )}
+          >
+            <Users className="size-4" />
+            Användare
           </Link>
         )}
         <Link
