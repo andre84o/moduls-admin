@@ -17,6 +17,13 @@ import {
   User,
   MapPin,
   Code2,
+  BookOpen,
+  ChefHat,
+  UtensilsCrossed,
+  Contact,
+  MessageSquare,
+  PartyPopper,
+  FileText,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -110,6 +117,56 @@ const SECTION_META: Record<string, SectionMeta> = {
     label: "Booking messages",
     help: "The confirmation text shown after a booking.",
     icon: CalendarCheck,
+  },
+  restaurantHero: {
+    label: "Välkomstbanner",
+    help: "Den stora rubriken och fotot som besökare ser först.",
+    icon: Megaphone,
+  },
+  restaurantStory: {
+    label: "Vår historia",
+    help: "Din berättelsetext med ett foto.",
+    icon: BookOpen,
+  },
+  restaurantSpecialties: {
+    label: "Specialiteter",
+    help: "Utvalda rätter som visas som kort.",
+    icon: ChefHat,
+  },
+  restaurantGallery: {
+    label: "Fotogalleri",
+    help: "Ett rutnät med dina foton.",
+    icon: Images,
+  },
+  menuList: {
+    label: "Menylista",
+    help: "Dina menykategorier, grupper och priser.",
+    icon: UtensilsCrossed,
+  },
+  contactInfo: {
+    label: "Kontaktuppgifter",
+    help: "Adress, öppettider, karta och kontaktkort.",
+    icon: Contact,
+  },
+  contactForm: {
+    label: "Kontaktformulär",
+    help: "Introduktionstext för det publika meddelandeformuläret.",
+    icon: MessageSquare,
+  },
+  cateringHero: {
+    label: "Cateringbanner",
+    help: "Cateringrubriken, introduktionen och fotot.",
+    icon: PartyPopper,
+  },
+  cateringEditorial: {
+    label: "Cateringtext",
+    help: "Cateringtextsektioner och listan över tillfällen.",
+    icon: FileText,
+  },
+  cateringMenus: {
+    label: "Cateringmenyer",
+    help: "De fasta cateringmenyerna med rätter, taggar och priser.",
+    icon: UtensilsCrossed,
   },
   siteFooter: {
     label: "Footer",
