@@ -184,6 +184,14 @@ function prettifyType(type: string): string {
   return spaced ? spaced.charAt(0).toUpperCase() + spaced.slice(1) : type;
 }
 
+// A page title that looks like a raw CUID/ID was stored incorrectly in the DB.
+// Fall back to a prettified key so the UI never shows a raw database ID.
+function pageDisplayName(p: { title: string; key: string; slug: string | null }): string {
+  const isCuidLike = /^c[a-z0-9]{20,30}$/.test(p.title);
+  if (!p.title || isCuidLike) return prettifyType(p.key);
+  return p.title;
+}
+
 function metaFor(type: string): SectionMeta {
   return (
     SECTION_META[type] ?? {
@@ -269,6 +277,7 @@ export function WebsiteSection({
         {pages.length > 1 ? (
           <Select
             value={selectedPage?.id}
+            items={pages.map((p) => ({ value: p.id, label: pageDisplayName(p) }))}
             onValueChange={(value) => {
               if (!value) return;
               setSelectedPageId(value);
@@ -277,12 +286,12 @@ export function WebsiteSection({
             }}
           >
             <SelectTrigger className="min-w-40" aria-label="Page">
-              <SelectValue />
+              <SelectValue placeholder="Select page" />
             </SelectTrigger>
             <SelectContent>
               {pages.map((p) => (
                 <SelectItem key={p.id} value={p.id}>
-                  {p.title}
+                  {pageDisplayName(p)}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -305,7 +314,7 @@ export function WebsiteSection({
               <div className="flex items-center justify-between gap-2 rounded-lg border bg-card px-3 py-2.5">
                 <div className="min-w-0">
                   <p className="truncate text-sm font-medium">
-                    {selectedPage.title}
+                    {pageDisplayName(selectedPage)}
                   </p>
                   <p className="text-xs text-muted-foreground">
                     {selectedPage.status === "PUBLISHED" ? "Published" : "Draft"}

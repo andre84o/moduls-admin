@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "ModulsAdmin",
+  title: "one.intenzze.com",
   description:
     "A secure, multi-tenant admin platform for running and managing your business modules.",
 };

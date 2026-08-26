@@ -19,13 +19,7 @@ export function LoginForm() {
   return (
     <Card className="w-full max-w-sm">
       <CardHeader className="text-center">
-        <span className="text-xl font-semibold tracking-tight">
-          Moduls<span className="text-amber-500">Admin</span>
-        </span>
-        <CardTitle className="mt-3 text-2xl">Sign in</CardTitle>
-        <CardDescription>
-          Sign in to manage properties, bookings and customers.
-        </CardDescription>
+        <CardTitle className="text-2xl">Sign in</CardTitle>
       </CardHeader>
       <CardContent>
         <form action={action} className="space-y-4">
