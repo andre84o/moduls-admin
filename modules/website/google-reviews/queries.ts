@@ -7,7 +7,7 @@ import {
   GOOGLE_REVIEWS_FEATURE_KEY,
 } from "@/lib/feature-access";
 import { DEFAULT_MAX_COUNT, normalizePayload } from "./utils";
-import type { GoogleReview } from "./types";
+import type { GoogleReview, ManualReview } from "./types";
 
 /**
  * Admin read layer for the Website Google Reviews integration. Every function
@@ -29,6 +29,7 @@ export type AdminGoogleReviewSettings = {
   maxCount: number;
   lastSyncedAt: string | null;
   lastError: string | null;
+  manualReviews: ManualReview[];
 };
 
 /** Serializable cached-reviews snapshot for the admin preview. */
@@ -48,6 +49,7 @@ const DEFAULT_SETTINGS: AdminGoogleReviewSettings = {
   maxCount: DEFAULT_MAX_COUNT,
   lastSyncedAt: null,
   lastError: null,
+  manualReviews: [],
 };
 
 const EMPTY_CACHE: AdminCachedGoogleReviews = {
@@ -100,6 +102,7 @@ export async function getGoogleReviewSettings(): Promise<AdminGoogleReviewSettin
       maxCount: true,
       lastSyncedAt: true,
       lastError: true,
+      manualReviews: true,
     },
   });
   if (!row) return { ...DEFAULT_SETTINGS };
@@ -111,6 +114,7 @@ export async function getGoogleReviewSettings(): Promise<AdminGoogleReviewSettin
     maxCount: row.maxCount,
     lastSyncedAt: row.lastSyncedAt ? row.lastSyncedAt.toISOString() : null,
     lastError: row.lastError,
+    manualReviews: Array.isArray(row.manualReviews) ? (row.manualReviews as ManualReview[]) : [],
   };
 }
 

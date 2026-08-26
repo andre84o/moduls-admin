@@ -116,3 +116,18 @@ async function injectGoogleReviews(
 export function getPublishedHomeSections(): Promise<Section[] | null> {
   return getPublishedPageSections("home");
 }
+
+/**
+ * Inject Google Reviews into any sections that contain a `googleReviews` slot,
+ * using the server-resolved public businessId. Safe to call on config-fallback
+ * sections — returns the sections unchanged when in demo mode, no business can
+ * be resolved, or the section list has no `googleReviews` entry.
+ */
+export async function withPublicGoogleReviews(
+  sections: Section[],
+): Promise<Section[]> {
+  if (isDemoMode()) return sections;
+  const businessId = await resolvePublicBusinessId();
+  if (!businessId) return sections;
+  return injectGoogleReviews(businessId, sections);
+}

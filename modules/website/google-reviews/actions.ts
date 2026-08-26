@@ -12,6 +12,7 @@ import { writeAuditLog } from "@/lib/audit";
 import type { BusinessAccess } from "@/lib/auth";
 import { fetchGooglePlaceReviews } from "./service";
 import { clampMaxCount, clampMinRating, normalizePayload, DEFAULT_MAX_COUNT } from "./utils";
+import type { ManualReview } from "./types";
 
 /**
  * Mutating server actions for the Website Google Reviews integration.
@@ -196,6 +197,43 @@ export async function syncGoogleReviews(): Promise<{ error?: string; count?: num
   revalidatePath("/admin");
   revalidatePath("/");
   return { count };
+}
+
+/**
+ * Save the manually entered reviews for this business. Replaces the entire
+ * manualReviews array — always server-resolved businessId, never from client.
+ */
+export async function saveManualReviews(
+  reviews: ManualReview[],
+): Promise<{ error?: string }> {
+  const access = await requireModule("WEBSITE", {
+    allowedRoles: [...WEBSITE_WRITER_ROLES],
+  });
+  if (!(await hasGoogleReviewsAddOn(access))) {
+    return { error: ADDON_DISABLED_ERROR };
+  }
+  if (access.isDemo) return {};
+
+  // Validate each review server-side
+  const safe = reviews
+    .filter((r) => typeof r.author === "string" && typeof r.text === "string")
+    .map((r) => ({
+      author: String(r.author).trim().slice(0, 200),
+      rating: Math.max(1, Math.min(5, Math.round(Number(r.rating) || 5))),
+      text: String(r.text).trim().slice(0, 2000),
+      relativeTime: String(r.relativeTime ?? "").trim().slice(0, 100),
+    }));
+
+  await getPrisma().googleReviewSettings.upsert({
+    where: { businessId: access.businessId },
+    create: { businessId: access.businessId, manualReviews: safe as Prisma.InputJsonValue },
+    update: { manualReviews: safe as Prisma.InputJsonValue },
+    select: { id: true },
+  });
+
+  revalidatePath("/admin");
+  revalidatePath("/");
+  return {};
 }
 
 /**

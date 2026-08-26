@@ -46,6 +46,15 @@ export function getHomeSections(): Section[] {
       },
     },
     {
+      type: "googleReviews",
+      props: {
+        eyebrow: home.googleReviews.eyebrow,
+        heading: home.googleReviews.heading,
+        body: home.googleReviews.body,
+        accentClassName: accent,
+      },
+    },
+    {
       type: "siteFooter",
       props: {
         brand,

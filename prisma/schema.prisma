@@ -501,10 +501,11 @@ model GoogleReviewSettings {
   minRating    Int?
   maxCount     Int       @default(6)
   // Bookkeeping for the (future) sync action — never affects tenant scoping.
-  lastSyncedAt DateTime?
-  lastError    String?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  lastSyncedAt  DateTime?
+  lastError     String?
+  manualReviews Json?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
 

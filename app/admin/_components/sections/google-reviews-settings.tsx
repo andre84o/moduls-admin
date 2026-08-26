@@ -2,6 +2,8 @@
 
 import { useState, useTransition } from "react";
 import { Save, RefreshCw, Trash2, Star, AlertTriangle } from "lucide-react";
+import { saveManualReviews } from "@/modules/website/google-reviews/actions";
+import type { ManualReview } from "@/modules/website/google-reviews/types";
 import {
   Card,
   CardContent,
@@ -67,6 +69,8 @@ export function GoogleReviewsSettings({
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [manualReviews, setManualReviews] = useState<ManualReview[]>(settings.manualReviews ?? []);
+  const [newReview, setNewReview] = useState<ManualReview>({ author: "", rating: 5, text: "", relativeTime: "" });
 
   function resetMessages() {
     setError(null);
@@ -107,6 +111,25 @@ export function GoogleReviewsSettings({
       const res = await clearGoogleReviewCache();
       if (res?.error) setError(res.error);
       else setNotice("Cached reviews cleared.");
+    });
+  }
+
+  function handleAddManual() {
+    if (!newReview.author.trim() || !newReview.text.trim()) return;
+    setManualReviews((prev) => [...prev, { ...newReview }]);
+    setNewReview({ author: "", rating: 5, text: "", relativeTime: "" });
+  }
+
+  function handleRemoveManual(index: number) {
+    setManualReviews((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  function handleSaveManual() {
+    resetMessages();
+    startTransition(async () => {
+      const res = await saveManualReviews(manualReviews);
+      if (res?.error) setError(res.error);
+      else setNotice(`${manualReviews.length} manual review${manualReviews.length === 1 ? "" : "s"} saved.`);
     });
   }
 
@@ -228,7 +251,7 @@ export function GoogleReviewsSettings({
               Cached preview
             </p>
             <div className="space-y-2">
-              {cache.reviews.slice(0, 3).map((review, index) => (
+              {cache.reviews.map((review, index) => (
                 <div
                   key={`${review.author}-${review.time ?? index}`}
                   className="rounded-lg border p-3 text-sm"
@@ -257,6 +280,108 @@ export function GoogleReviewsSettings({
             </div>
           </div>
         ) : null}
+
+        {/* Manual reviews */}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-medium">Manual reviews</p>
+            <Button size="sm" variant="outline" disabled={isPending} onClick={handleSaveManual}>
+              <Save className="size-3.5" />
+              Save manual
+            </Button>
+          </div>
+
+          {/* Existing manual reviews list */}
+          {manualReviews.length > 0 ? (
+            <div className="space-y-2">
+              {manualReviews.map((r, i) => (
+                <div key={i} className="flex items-start gap-2 rounded-lg border p-3 text-sm">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="font-medium truncate">{r.author || "Anonymous"}</span>
+                      <Badge variant="secondary" className="tabular-nums shrink-0">
+                        <Star className="size-3 fill-amber-400 text-amber-400" />
+                        {r.rating}
+                      </Badge>
+                      {r.relativeTime ? <span className="text-xs text-muted-foreground">{r.relativeTime}</span> : null}
+                    </div>
+                    {r.text ? <p className="line-clamp-2 text-muted-foreground">{r.text}</p> : null}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveManual(i)}
+                    className="shrink-0 text-destructive hover:text-destructive/80"
+                    aria-label="Remove"
+                  >
+                    <Trash2 className="size-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">No manual reviews yet.</p>
+          )}
+
+          {/* Add new manual review form */}
+          <div className="rounded-lg border p-4 space-y-3">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Add review</p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <Label htmlFor="mr-author">Author name</Label>
+                <Input
+                  id="mr-author"
+                  value={newReview.author}
+                  onChange={(e) => setNewReview((p) => ({ ...p, author: e.target.value }))}
+                  placeholder="Anna Svensson"
+                  className="mt-1.5"
+                />
+              </div>
+              <div>
+                <Label htmlFor="mr-rating">Rating</Label>
+                <select
+                  id="mr-rating"
+                  value={newReview.rating}
+                  onChange={(e) => setNewReview((p) => ({ ...p, rating: Number(e.target.value) }))}
+                  className={SELECT_CLASS}
+                >
+                  {[5, 4, 3, 2, 1].map((n) => (
+                    <option key={n} value={n}>{n} stars</option>
+                  ))}
+                </select>
+              </div>
+              <div className="sm:col-span-2">
+                <Label htmlFor="mr-text">Review text</Label>
+                <textarea
+                  id="mr-text"
+                  value={newReview.text}
+                  onChange={(e) => setNewReview((p) => ({ ...p, text: e.target.value }))}
+                  placeholder="Paste the review text here…"
+                  rows={3}
+                  className="mt-1.5 w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm transition-colors outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30 resize-none"
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <Label htmlFor="mr-time">Time description (optional)</Label>
+                <Input
+                  id="mr-time"
+                  value={newReview.relativeTime}
+                  onChange={(e) => setNewReview((p) => ({ ...p, relativeTime: e.target.value }))}
+                  placeholder="för 2 månader sedan"
+                  className="mt-1.5"
+                />
+              </div>
+            </div>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={handleAddManual}
+              disabled={!newReview.author.trim() || !newReview.text.trim()}
+            >
+              Add to list
+            </Button>
+          </div>
+        </div>
 
         {/* Messages */}
         {error ? <p className="text-sm text-destructive">{error}</p> : null}

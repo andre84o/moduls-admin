@@ -49,6 +49,11 @@ export type CustomerContent = {
     features: {
       items: FeatureItem[];
     };
+    googleReviews: {
+      eyebrow: string;
+      heading: string;
+      body: string;
+    };
   };
   /**
    * Static labels shown on the public property page. Property data itself
@@ -108,6 +113,11 @@ export const customerContent: CustomerContent = {
           text: "Tell visitors how to reach you, and update your contact details in config.",
         },
       ],
+    },
+    googleReviews: {
+      eyebrow: "Reviews",
+      heading: "What our customers say",
+      body: "Read what people are saying about us on Google.",
     },
   },
   property: {

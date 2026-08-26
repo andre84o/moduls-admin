@@ -9,7 +9,7 @@ import {
   selectReviews,
   extractPlaceMeta,
 } from "./utils";
-import type { GoogleReview } from "./types";
+import type { GoogleReview, ManualReview } from "./types";
 
 /**
  * PUBLIC, sessionless read layer for cached Google Reviews.
@@ -67,7 +67,7 @@ export async function getPublicGoogleReviews(
   // Settings gate the integration; scoped by the server-resolved businessId.
   const settings = await prisma.googleReviewSettings.findUnique({
     where: { businessId },
-    select: { enabled: true, placeId: true, minRating: true, maxCount: true },
+    select: { enabled: true, placeId: true, minRating: true, maxCount: true, manualReviews: true },
   });
   if (!settings || !settings.enabled) return { ...EMPTY_PUBLIC_REVIEWS };
 
@@ -79,17 +79,38 @@ export async function getPublicGoogleReviews(
     where: { businessId_placeId: { businessId, placeId } },
     select: { payload: true },
   });
-  if (!cache) return { ...EMPTY_PUBLIC_REVIEWS };
 
-  const normalized = normalizePayload(cache.payload);
-  const meta = extractPlaceMeta(cache.payload);
-  const reviews = selectReviews(normalized.reviews, {
-    minRating: settings.minRating,
-    maxCount: settings.maxCount,
-  });
+  const normalized = cache
+    ? normalizePayload(cache.payload)
+    : { rating: null, userRatingCount: null, reviews: [] };
+  const meta = cache ? extractPlaceMeta(cache.payload) : { googleMapsUri: null, placeName: null };
+
+  // Convert manually entered reviews to the GoogleReview shape (no Google metadata).
+  const rawManual = Array.isArray(settings.manualReviews)
+    ? (settings.manualReviews as ManualReview[])
+    : [];
+  const manualAsReviews: GoogleReview[] = rawManual.map((m) => ({
+    author: m.author,
+    rating: m.rating,
+    text: m.text,
+    relativeTime: m.relativeTime,
+    time: null,
+    profilePhotoUrl: null,
+    authorUrl: null,
+    language: null,
+  }));
+
+  // Merge cached and manual reviews, then re-apply display filters.
+  const allReviews = selectReviews(
+    [...normalized.reviews, ...manualAsReviews],
+    { minRating: settings.minRating, maxCount: settings.maxCount },
+  );
+
+  // Only return empty when there are no reviews at all and no aggregate rating.
+  if (!allReviews.length && normalized.rating == null) return { ...EMPTY_PUBLIC_REVIEWS };
 
   return {
-    reviews,
+    reviews: allReviews,
     aggregateRating: normalized.rating,
     userRatingCount: normalized.userRatingCount,
     googleMapsUri: meta.googleMapsUri,

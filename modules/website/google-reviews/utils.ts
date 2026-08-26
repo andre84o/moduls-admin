@@ -249,10 +249,10 @@ export function filterByMinRating(
  * regardless of input order.
  */
 function compareReviews(a: GoogleReview, b: GoogleReview): number {
-  if (a.rating !== b.rating) return b.rating - a.rating;
   const at = a.time ?? Number.NEGATIVE_INFINITY;
   const bt = b.time ?? Number.NEGATIVE_INFINITY;
   if (at !== bt) return bt - at;
+  if (a.rating !== b.rating) return b.rating - a.rating;
   if (a.author !== b.author) return a.author < b.author ? -1 : 1;
   if (a.text !== b.text) return a.text < b.text ? -1 : 1;
   return 0;

@@ -1,7 +1,10 @@
 import { Suspense } from "react";
 import { SectionRenderer } from "@/components/sections/SectionRenderer";
 import { getHomeSections } from "@/config/home-sections";
-import { getPublishedHomeSections } from "@/modules/website/queries-public";
+import {
+  getPublishedHomeSections,
+  withPublicGoogleReviews,
+} from "@/modules/website/queries-public";
 import type { Section } from "@/components/sections/types";
 
 // Booking-status overlay. Rendered through the registry like any other section,
@@ -13,7 +16,10 @@ export default async function Home() {
   // Prefer published Website Content from the database; fall back to config when
   // nothing is published (or the WEBSITE module is off) so the home page is
   // never broken or empty. Public render reads publishedContent only.
-  const sections = (await getPublishedHomeSections()) ?? getHomeSections();
+  // Google Reviews are injected into whichever source provides the sections.
+  const sections =
+    (await getPublishedHomeSections()) ??
+    (await withPublicGoogleReviews(getHomeSections()));
 
   return (
     <div className="flex flex-1 flex-col bg-white text-zinc-900">

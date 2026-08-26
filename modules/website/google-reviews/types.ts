@@ -43,3 +43,11 @@ export type GoogleReviewDisplayOptions = {
   /** Maximum number of reviews to return. */
   maxCount?: number | null;
 };
+
+/** A manually entered review — for copy-paste from Google when the API returns too few reviews. */
+export type ManualReview = {
+  author: string;
+  rating: number;
+  text: string;
+  relativeTime: string;
+};
