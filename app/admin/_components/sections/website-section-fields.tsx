@@ -148,10 +148,7 @@ export function validateSectionContent(
 ): string | null {
   switch (type) {
     case "hero": {
-      const cta = obj(content.cta);
       if (!str(content.heading).trim()) return "Rubrik krävs.";
-      if (!str(cta.label).trim()) return "Knapptext krävs.";
-      if (!str(cta.href).trim()) return "Knapplänk krävs.";
       return null;
     }
     case "siteHeader": {
@@ -352,10 +349,8 @@ function HeroFields({
   content: SectionContent;
   onChange: (next: SectionContent) => void;
 }) {
-  const cta = obj(content.cta);
-  const set = (patch: SectionContent) => onChange({ ...content, ...patch });
-  const setCta = (patch: SectionContent) =>
-    onChange({ ...content, cta: { ...cta, ...patch } });
+  const set = (patch: SectionContent) =>
+    onChange({ ...content, ...patch, cta: null });
 
   return (
     <div className="grid gap-4 sm:grid-cols-2">
@@ -379,21 +374,6 @@ function HeroFields({
           value={str(content.body)}
           onChange={(e) => set({ body: e.target.value })}
           className="min-h-24"
-        />
-      </Field>
-      <Field label="Knapptext" htmlFor={`${id}-cta-label`}>
-        <Input
-          id={`${id}-cta-label`}
-          value={str(cta.label)}
-          onChange={(e) => setCta({ label: e.target.value })}
-        />
-      </Field>
-      <Field label="Knapplänk" htmlFor={`${id}-cta-href`}>
-        <Input
-          id={`${id}-cta-href`}
-          value={str(cta.href)}
-          onChange={(e) => setCta({ href: e.target.value })}
-          placeholder="/book"
         />
       </Field>
     </div>

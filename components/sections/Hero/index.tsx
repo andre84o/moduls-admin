@@ -12,7 +12,7 @@ export function Hero({
   eyebrow: string;
   heading: string;
   body: string;
-  cta: { label: string; href: string };
+  cta?: { label: string; href: string } | null;
   accentClassName?: string;
 }) {
   return (
@@ -27,14 +27,16 @@ export function Hero({
           {heading}
         </h1>
         <p className="mx-auto mt-6 max-w-xl text-lg text-zinc-600">{body}</p>
-        <div className="mt-10">
-          <a
-            href={cta.href}
-            className="inline-block rounded-full bg-zinc-900 px-8 py-3.5 text-base font-semibold text-white shadow-sm transition hover:bg-zinc-700"
-          >
-            {cta.label}
-          </a>
-        </div>
+        {cta?.label && cta?.href ? (
+          <div className="mt-10">
+            <a
+              href={cta.href}
+              className="inline-block rounded-full bg-zinc-900 px-8 py-3.5 text-base font-semibold text-white shadow-sm transition hover:bg-zinc-700"
+            >
+              {cta.label}
+            </a>
+          </div>
+        ) : null}
       </div>
     </section>
   );

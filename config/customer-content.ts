@@ -93,10 +93,7 @@ export const customerContent: CustomerContent = {
       eyebrow: "Welcome",
       heading: "Welcome to your website",
       body: "This is placeholder text. Replace it with your own welcome message in config/customer-content.ts when your final copy is ready.",
-      cta: {
-        label: "Login",
-        href: "/login",
-      },
+      cta: null,
     },
     features: {
       items: [

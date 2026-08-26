@@ -46,7 +46,8 @@ function isRenderableSection(type: string, content: unknown): boolean {
         content.nav.every(isPlainObject)
       );
     case "hero":
-      return isPlainObject(content.cta);
+      // cta is optional — null/absent is valid (no button rendered)
+      return content.cta == null || isPlainObject(content.cta);
     case "featureGrid":
       // items are mapped and field-accessed (item.title/text); same rule.
       return (
