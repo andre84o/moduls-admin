@@ -1,9 +1,9 @@
 import {
-  LayoutDashboard,
   Home,
   CalendarDays,
   Users,
   Globe,
+  Star,
 } from "lucide-react";
 
 /**
@@ -15,11 +15,11 @@ import {
  */
 
 export const ADMIN_SECTIONS = [
-  { id: "overview", label: "Overview", icon: LayoutDashboard, module: null },
   { id: "properties", label: "Properties", icon: Home, module: "RENTAL" },
   { id: "bookings", label: "Bookings", icon: CalendarDays, module: "BOOKING" },
   { id: "customers", label: "CRM", icon: Users, module: "CRM" },
   { id: "website", label: "Website", icon: Globe, module: "WEBSITE" },
+  { id: "googleReviews", label: "Google Reviews", icon: Star, module: "WEBSITE" },
 ] as const;
 
 export type AdminSectionId = (typeof ADMIN_SECTIONS)[number]["id"];

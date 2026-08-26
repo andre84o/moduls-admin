@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -10,7 +11,6 @@ import type {
   AdminProperty,
   AdminBooking,
   AdminCustomer,
-  DashboardStats,
   BusinessOption,
 } from "../types";
 import type { AdminWebsitePageWithSections } from "@/modules/website/types";
@@ -18,7 +18,6 @@ import type {
   AdminGoogleReviewSettings,
   AdminCachedGoogleReviews,
 } from "@/modules/website/google-reviews/queries";
-import { OverviewSection } from "./sections/overview";
 import { PropertiesSection } from "./sections/properties";
 import { BookingsSection } from "./sections/bookings";
 import { CustomersSection } from "./sections/customers";
@@ -26,7 +25,6 @@ import { WebsiteSection } from "./sections/website";
 import { GoogleReviewsSettings } from "./sections/google-reviews-settings";
 
 export function AdminShell({
-  stats,
   properties,
   bookings,
   customers,
@@ -38,9 +36,8 @@ export function AdminShell({
   businesses,
   activeBusinessId,
   enabledModules,
-  initialSection = "overview",
+  initialSection = "website",
 }: {
-  stats: DashboardStats;
   properties: AdminProperty[];
   bookings: AdminBooking[];
   customers: AdminCustomer[];
@@ -55,7 +52,13 @@ export function AdminShell({
   /** Initial section from the ?tab= query (deep links from other routes). */
   initialSection?: AdminSectionId;
 }) {
+  const router = useRouter();
   const [active, setActive] = useState<AdminSectionId>(initialSection);
+
+  const selectSection = useCallback((id: AdminSectionId) => {
+    setActive(id);
+    router.replace(`/admin?tab=${id}`, { scroll: false });
+  }, [router]);
 
   // Sidebar has two states: fully open or fully closed. Toggled from the header.
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -81,13 +84,15 @@ export function AdminShell({
     return () => document.removeEventListener("mousedown", onPointerDown);
   }, [sidebarOpen]);
 
-  const visibleSections = visibleAdminSections(enabledModules);
+  const visibleSections = visibleAdminSections(enabledModules).filter(
+    (s) => s.id !== "googleReviews" || googleReviewsAddOnEnabled,
+  );
 
   const effectiveActive: AdminSectionId = visibleSections.some(
     (s) => s.id === active,
   )
     ? active
-    : "overview";
+    : "website";
 
   // SUPER_ADMIN on any business grants access to platform tools. Cosmetic only —
   // the page + actions are guarded server-side by requireSuperAdmin.
@@ -130,17 +135,15 @@ export function AdminShell({
             businesses={businesses}
             activeBusinessId={activeBusinessId}
             enabledModules={enabledModules}
+            googleReviewsAddOnEnabled={googleReviewsAddOnEnabled}
             isSuperAdmin={isSuperAdmin}
             activeSection={effectiveActive}
-            onSelectSection={setActive}
+            onSelectSection={selectSection}
           />
         </aside>
 
         <main className="flex-1 overflow-y-auto">
           <div className="mx-auto max-w-5xl px-8 py-10">
-            {effectiveActive === "overview" && (
-              <OverviewSection stats={stats} enabledModules={enabledModules} />
-            )}
             {effectiveActive === "properties" && (
               <PropertiesSection properties={properties} />
             )}
@@ -151,19 +154,14 @@ export function AdminShell({
               <CustomersSection customers={customers} />
             )}
             {effectiveActive === "website" && (
-              <div className="space-y-10">
-                <WebsiteSection pages={websitePages} />
-                {/* Google Reviews is a paid Website add-on, gated server-side by
-                    a SUPER_ADMIN. The panel only renders when the business has
-                    been granted access (googleReviewsAddOnEnabled). */}
-                {googleReviewsAddOnEnabled ? (
-                  <GoogleReviewsSettings
-                    settings={googleReviewSettings}
-                    cache={googleReviewCache}
-                    configured={googleReviewsConfigured}
-                  />
-                ) : null}
-              </div>
+              <WebsiteSection pages={websitePages} />
+            )}
+            {effectiveActive === "googleReviews" && googleReviewsAddOnEnabled && (
+              <GoogleReviewsSettings
+                settings={googleReviewSettings}
+                cache={googleReviewCache}
+                configured={googleReviewsConfigured}
+              />
             )}
           </div>
         </main>

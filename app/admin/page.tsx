@@ -1,5 +1,4 @@
 import {
-  getDashboardStats,
   getProperties,
   getBookings,
   getCustomers,
@@ -19,10 +18,10 @@ import {
   type AdminSectionId,
 } from "./_components/admin-sections";
 
-/** Coerce the ?tab= query into a known section id (defaults to overview). */
+/** Coerce the ?tab= query into a known section id (defaults to website). */
 function tabToSection(tab: string | undefined): AdminSectionId {
   const match = ADMIN_SECTIONS.find((s) => s.id === tab);
-  return match ? match.id : "overview";
+  return match ? match.id : "website";
 }
 
 export default async function AdminPage({
@@ -35,7 +34,6 @@ export default async function AdminPage({
   // getWebsitePagesWithSections is itself gated by the WEBSITE module and
   // returns [] when it is disabled, so loading it here never leaks content.
   const [
-    stats,
     properties,
     bookings,
     customers,
@@ -47,7 +45,6 @@ export default async function AdminPage({
     activeId,
     enabledModules,
   ] = await Promise.all([
-    getDashboardStats(),
     getProperties(),
     getBookings(),
     getCustomers(),
@@ -65,7 +62,6 @@ export default async function AdminPage({
 
   return (
     <AdminShell
-      stats={stats}
       properties={properties}
       bookings={bookings}
       customers={customers}

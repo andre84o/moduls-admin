@@ -34,6 +34,7 @@ export function AdminSidebarContent({
   businesses,
   activeBusinessId,
   enabledModules,
+  googleReviewsAddOnEnabled = false,
   isSuperAdmin,
   activeSection,
   onSelectSection,
@@ -43,6 +44,7 @@ export function AdminSidebarContent({
   businesses: BusinessOption[];
   activeBusinessId: string | null;
   enabledModules: string[];
+  googleReviewsAddOnEnabled?: boolean;
   isSuperAdmin: boolean;
   /** Highlighted section, or null when none (e.g. on the super pages). */
   activeSection: AdminSectionId | null;
@@ -51,7 +53,9 @@ export function AdminSidebarContent({
   moduleSettingsActive?: boolean;
   usersActive?: boolean;
 }) {
-  const visible = visibleAdminSections(enabledModules);
+  const visible = visibleAdminSections(enabledModules).filter(
+    (s) => s.id !== "googleReviews" || googleReviewsAddOnEnabled,
+  );
 
   return (
     <div className="flex h-full w-60 flex-col overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
