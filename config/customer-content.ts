@@ -44,7 +44,7 @@ export type CustomerContent = {
       eyebrow: string;
       heading: string;
       body: string;
-      cta: CtaContent;
+      cta: CtaContent | null;
     };
     features: {
       items: FeatureItem[];

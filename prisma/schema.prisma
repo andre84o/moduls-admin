@@ -570,6 +570,7 @@ enum ProjectType {
   BOOKING
   WEBSITE
   RENTAL
+  RESTAURANT
   ECOMMERCE
   CUSTOM
 }

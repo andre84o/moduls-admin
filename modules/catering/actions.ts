@@ -3,6 +3,7 @@
 import { getPrisma, isDbConfigured } from "@/lib/prisma";
 import { resolvePublicBusinessId } from "@/lib/public-tenant";
 import { hasBusinessFeatureAccess, CATERING_FEATURE_KEY } from "@/lib/feature-access";
+import { isRestaurantEnabled } from "@/modules/restaurant/guards";
 import { CATERING_MENUS } from "./config";
 
 /**
@@ -81,9 +82,13 @@ export async function submitCateringRequest(
     return { error: "Kunde inte skicka just nu. Försök igen senare." };
   }
 
-  // Feature gate: catering is a per-business add-on (BusinessFeatureAccess).
-  // A business without the CATERING add-on cannot receive enquiries — the
-  // action refuses even if the form was somehow reached.
+  // Module gate: RESTAURANT must be enabled before catering is reachable.
+  if (!(await isRestaurantEnabled(businessId))) {
+    return { error: "Catering är inte tillgänglig just nu." };
+  }
+
+  // Feature gate: CATERING is a paid add-on on top of the RESTAURANT module.
+  // Both must be active for enquiries to be accepted.
   if (!(await hasBusinessFeatureAccess(businessId, CATERING_FEATURE_KEY))) {
     return { error: "Catering är inte tillgänglig just nu." };
   }

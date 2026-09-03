@@ -3,13 +3,13 @@ import {
   setModuleEnabled,
   setBusinessFeatureAccess,
 } from "@/lib/super-admin-actions";
-import { GOOGLE_REVIEWS_FEATURE_KEY } from "@/lib/feature-access";
+import { GOOGLE_REVIEWS_FEATURE_KEY, CATERING_FEATURE_KEY } from "@/lib/feature-access";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 
-const MODULES = ["WEBSITE", "RENTAL", "BOOKING", "CRM"] as const;
+const MODULES = ["WEBSITE", "RESTAURANT", "RENTAL", "BOOKING", "CRM"] as const;
 
 export default async function SuperModulesPage() {
   const businesses = await getAllBusinessesWithModules();
@@ -70,8 +70,7 @@ export default async function SuperModulesPage() {
                   Add-ons (paid)
                 </p>
                 <div className="flex flex-wrap gap-3">
-                  {/* Google Reviews is a paid Website add-on, gated via
-                      BusinessFeatureAccess — NOT a module / ProjectType. */}
+                  {/* Google Reviews — paid Website add-on. */}
                   <form
                     action={setBusinessFeatureAccess.bind(null, {
                       businessId: b.id,
@@ -91,6 +90,28 @@ export default async function SuperModulesPage() {
                     >
                       Google Reviews ·{" "}
                       {b.addOns.GOOGLE_REVIEWS ? "Enabled" : "Disabled"}
+                    </Button>
+                  </form>
+                  {/* Catering — paid Restaurant add-on. Requires RESTAURANT module. */}
+                  <form
+                    action={setBusinessFeatureAccess.bind(null, {
+                      businessId: b.id,
+                      key: CATERING_FEATURE_KEY,
+                      enabled: !b.addOns.CATERING,
+                    })}
+                  >
+                    <Button
+                      type="submit"
+                      size="sm"
+                      variant={b.addOns.CATERING ? "default" : "outline"}
+                      className={
+                        b.addOns.CATERING
+                          ? "bg-green-600 hover:bg-green-700 border-green-600 text-white"
+                          : ""
+                      }
+                    >
+                      Catering ·{" "}
+                      {b.addOns.CATERING ? "Enabled" : "Disabled"}
                     </Button>
                   </form>
                 </div>

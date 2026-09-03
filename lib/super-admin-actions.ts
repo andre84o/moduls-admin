@@ -15,7 +15,7 @@ import type { ProjectType } from "@/app/generated/prisma/enums";
  * toggleable.
  */
 
-const TOGGLEABLE = new Set<ProjectType>(["WEBSITE", "RENTAL", "BOOKING", "CRM"]);
+const TOGGLEABLE = new Set<ProjectType>(["WEBSITE", "RENTAL", "BOOKING", "CRM", "RESTAURANT"]);
 
 export async function setModuleEnabled(formData: FormData) {
   const user = await requireSuperAdmin();
