@@ -15,6 +15,16 @@ export const RESTAURANT_SECTION_TYPES = new Set<string>([
   "cateringIntro",
 ]);
 
+/** Section types that require the CATERING add-on to be enabled. */
+export const CATERING_SECTION_TYPES = new Set<string>([
+  "cateringMenus",
+  "cateringIntro",
+]);
+
 export function isRestaurantSectionType(type: string): boolean {
   return RESTAURANT_SECTION_TYPES.has(type);
+}
+
+export function isCateringSectionType(type: string): boolean {
+  return CATERING_SECTION_TYPES.has(type);
 }

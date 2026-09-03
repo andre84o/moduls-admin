@@ -73,8 +73,8 @@ function InlineName({
   }
 
   return (
-    <span className="group/name flex flex-1 items-center gap-1 truncate">
-      <span className="truncate text-sm font-medium">{value}</span>
+    <span className="group/name flex flex-1 min-w-0 items-center">
+      <span className="truncate text-sm font-medium flex-1">{value}</span>
       <span
         role="button"
         tabIndex={0}
@@ -90,7 +90,7 @@ function InlineName({
         }}
         aria-label="Rename"
         className={cn(
-          "shrink-0 cursor-pointer rounded p-0.5 opacity-0 transition-opacity group-hover/name:opacity-60 hover:!opacity-100",
+          "ml-2 shrink-0 cursor-pointer rounded p-0.5 opacity-0 transition-opacity group-hover/name:opacity-60 hover:!opacity-100",
           active ? "text-[#B4434B]" : "text-muted-foreground",
         )}
       >

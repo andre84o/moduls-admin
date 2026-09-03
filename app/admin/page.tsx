@@ -9,6 +9,7 @@ import {
   getCachedGoogleReviewsAdmin,
   isGoogleReviewsAddOnEnabled,
 } from "@/modules/website/google-reviews/queries";
+import { isCateringAddOnEnabled } from "@/modules/restaurant/queries";
 import { isGoogleReviewsConfigured } from "@/lib/config";
 import { listSwitchableBusinesses, getActiveBusinessId } from "@/lib/auth";
 import { getEnabledModules } from "@/lib/modules";
@@ -41,6 +42,7 @@ export default async function AdminPage({
     googleReviewSettings,
     googleReviewCache,
     googleReviewsAddOnEnabled,
+    cateringAddOnEnabled,
     businesses,
     activeId,
     enabledModules,
@@ -52,6 +54,7 @@ export default async function AdminPage({
     getGoogleReviewSettings(),
     getCachedGoogleReviewsAdmin(),
     isGoogleReviewsAddOnEnabled(),
+    isCateringAddOnEnabled(),
     listSwitchableBusinesses(),
     getActiveBusinessId(),
     getEnabledModules(),
@@ -70,6 +73,7 @@ export default async function AdminPage({
       googleReviewCache={googleReviewCache}
       googleReviewsConfigured={googleReviewsConfigured}
       googleReviewsAddOnEnabled={googleReviewsAddOnEnabled}
+      cateringAddOnEnabled={cateringAddOnEnabled}
       businesses={businesses.map((b) => ({ id: b.id, name: b.name, role: b.role }))}
       activeBusinessId={activeId}
       enabledModules={Array.from(enabledModules)}

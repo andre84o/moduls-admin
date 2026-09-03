@@ -12,6 +12,13 @@ import type { NotificationAudience } from "@/app/generated/prisma/enums";
 
 const FROM = process.env.EMAIL_FROM ?? "Admin <onboarding@resend.dev>";
 
+function escapeHtml(value: string): string {
+  return value.replace(
+    /[&<>"']/g,
+    (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] as string,
+  );
+}
+
 type SendArgs = {
   businessId: string;
   to: string;
@@ -151,4 +158,42 @@ Total paid: ${totalLabel}</p>
 <p>Customer: ${customerName}${customerEmail ? ` (${customerEmail})` : ""}${customerPhone ? ` — ${customerPhone}` : ""}</p>`,
     });
   }
+}
+
+/** Notify the business admin about a new public catering enquiry. */
+export async function notifyCateringRequest(opts: {
+  businessId: string;
+  businessName: string;
+  adminEmail: string | null;
+  name: string;
+  email: string;
+  phone: string;
+  guests: number;
+  menu: string;
+  message: string;
+  consentText: string;
+}): Promise<void> {
+  const {
+    businessId, businessName, adminEmail, name, email, phone, guests, menu, message, consentText,
+  } = opts;
+
+  if (!adminEmail) return;
+
+  await sendNotification({
+    businessId,
+    to: adminEmail,
+    audience: "ADMIN",
+    subject: `Ny cateringförfrågan: ${name} (${guests} gäster)`,
+    html: `<p>En ny cateringförfrågan har skickats via ${escapeHtml(businessName)}.</p>
+<p><strong>Namn:</strong> ${escapeHtml(name)}<br/>
+<strong>E-post:</strong> ${escapeHtml(email)}<br/>
+<strong>Telefon:</strong> ${escapeHtml(phone)}<br/>
+<strong>Antal gäster:</strong> ${guests}<br/>
+<strong>Meny:</strong> ${escapeHtml(menu)}</p>${
+      message
+        ? `\n<p><strong>Meddelande:</strong><br/>${escapeHtml(message).replace(/\n/g, "<br/>")}</p>`
+        : ""
+    }
+<p><strong>Samtycke:</strong> ✔ Kunden har godkänt: ${escapeHtml(consentText)}</p>`,
+  });
 }

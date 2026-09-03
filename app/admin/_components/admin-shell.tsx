@@ -18,7 +18,7 @@ import type {
   AdminGoogleReviewSettings,
   AdminCachedGoogleReviews,
 } from "@/modules/website/google-reviews/queries";
-import { isRestaurantSectionType } from "@/modules/restaurant/section-types";
+import { isRestaurantSectionType, isCateringSectionType } from "@/modules/restaurant/section-types";
 import { PropertiesSection } from "./sections/properties";
 import { BookingsSection } from "./sections/bookings";
 import { CustomersSection } from "./sections/customers";
@@ -35,6 +35,7 @@ export function AdminShell({
   googleReviewCache,
   googleReviewsConfigured,
   googleReviewsAddOnEnabled,
+  cateringAddOnEnabled,
   businesses,
   activeBusinessId,
   enabledModules,
@@ -48,6 +49,7 @@ export function AdminShell({
   googleReviewCache: AdminCachedGoogleReviews;
   googleReviewsConfigured: boolean;
   googleReviewsAddOnEnabled: boolean;
+  cateringAddOnEnabled: boolean;
   businesses: BusinessOption[];
   activeBusinessId: string | null;
   enabledModules: string[];
@@ -108,7 +110,14 @@ export function AdminShell({
     .filter((p) => p.sections.length > 0);
 
   const restaurantPages = websitePages
-    .map((p) => ({ ...p, sections: p.sections.filter((s) => isRestaurantSectionType(s.type)) }))
+    .map((p) => ({
+      ...p,
+      sections: p.sections.filter(
+        (s) =>
+          isRestaurantSectionType(s.type) &&
+          (cateringAddOnEnabled || !isCateringSectionType(s.type)),
+      ),
+    }))
     .filter((p) => p.sections.length > 0);
 
   return (
