@@ -4,6 +4,7 @@ import {
   Users,
   Globe,
   Star,
+  UtensilsCrossed,
 } from "lucide-react";
 
 /**
@@ -20,6 +21,7 @@ export const ADMIN_SECTIONS = [
   { id: "customers", label: "CRM", icon: Users, module: "CRM" },
   { id: "website", label: "Website", icon: Globe, module: "WEBSITE" },
   { id: "googleReviews", label: "Google Reviews", icon: Star, module: "WEBSITE" },
+  { id: "restaurant", label: "Restaurant", icon: UtensilsCrossed, module: "RESTAURANT" },
 ] as const;
 
 export type AdminSectionId = (typeof ADMIN_SECTIONS)[number]["id"];

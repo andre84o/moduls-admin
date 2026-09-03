@@ -23,6 +23,7 @@ import { BookingsSection } from "./sections/bookings";
 import { CustomersSection } from "./sections/customers";
 import { WebsiteSection } from "./sections/website";
 import { GoogleReviewsSettings } from "./sections/google-reviews-settings";
+import { RestaurantSection } from "./sections/restaurant";
 
 export function AdminShell({
   properties,
@@ -162,6 +163,9 @@ export function AdminShell({
                 cache={googleReviewCache}
                 configured={googleReviewsConfigured}
               />
+            )}
+            {effectiveActive === "restaurant" && (
+              <RestaurantSection pages={websitePages} />
             )}
           </div>
         </main>
