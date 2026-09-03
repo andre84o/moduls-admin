@@ -2219,11 +2219,11 @@ function CateringMenuDishesList({
       {rows.length === 0 ? (
         <p className="text-xs text-muted-foreground">Inga rätter ännu.</p>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-3 border-l-2 border-amber-500/40 pl-3">
           {rows.map((item, i) => (
             <div
               key={item._key}
-              className="grid items-end gap-3 rounded-md border p-3 sm:grid-cols-[1fr_1fr_1fr_auto]"
+              className="grid items-end gap-3 rounded-md border bg-background p-3 sm:grid-cols-[1fr_1fr_1fr_auto]"
             >
               <Field label="Namn" htmlFor={`${id}-dish-${i}-name`}>
                 <Input
@@ -2356,9 +2356,9 @@ function CateringMenusFields({
         ) : (
           <div className="space-y-4">
             {menus.map((menu, i) => (
-              <div key={menu._key} className="rounded-md border p-3">
+              <div key={menu._key} className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-4">
                 <div className="mb-3 flex items-center justify-between">
-                  <span className="text-xs font-medium text-muted-foreground">
+                  <span className="text-xs font-semibold text-foreground">
                     Meny {i + 1}
                   </span>
                   <ConfirmDialog
@@ -2717,17 +2717,6 @@ function MenuListFields({
                       }
                     />
                   </Field>
-                  <label className="flex items-center gap-1.5 text-xs text-muted-foreground sm:col-span-2">
-                    <input
-                      type="checkbox"
-                      checked={Boolean(category.highlight)}
-                      onChange={(e) =>
-                        setCategory(i, { highlight: e.target.checked })
-                      }
-                      className="size-4 rounded border-input accent-primary"
-                    />
-                    Framhäv denna kategori (inramat block)
-                  </label>
                 </div>
                 <MenuGroupsList
                   id={`${id}-cat-${i}`}
