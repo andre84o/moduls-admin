@@ -21,11 +21,13 @@ import { isDemoMode } from "./config";
 /** Canonical add-on keys. Add new paid add-ons here — never a ProjectType. */
 export const GOOGLE_REVIEWS_FEATURE_KEY = "GOOGLE_REVIEWS";
 export const CATERING_FEATURE_KEY = "CATERING";
+export const RESTAURANT_BOOKING_FEATURE_KEY = "RESTAURANT_BOOKING";
 
 /** Every add-on key the platform recognizes (whitelist for the admin toggle). */
 export const KNOWN_FEATURE_KEYS = new Set<string>([
   GOOGLE_REVIEWS_FEATURE_KEY,
   CATERING_FEATURE_KEY,
+  RESTAURANT_BOOKING_FEATURE_KEY,
 ]);
 
 /**

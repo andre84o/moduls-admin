@@ -3,7 +3,11 @@ import {
   setModuleEnabled,
   setBusinessFeatureAccess,
 } from "@/lib/super-admin-actions";
-import { GOOGLE_REVIEWS_FEATURE_KEY, CATERING_FEATURE_KEY } from "@/lib/feature-access";
+import {
+  GOOGLE_REVIEWS_FEATURE_KEY,
+  CATERING_FEATURE_KEY,
+  RESTAURANT_BOOKING_FEATURE_KEY,
+} from "@/lib/feature-access";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -70,7 +74,6 @@ export default async function SuperModulesPage() {
                   Add-ons (paid)
                 </p>
                 <div className="flex flex-wrap gap-3">
-                  {/* Google Reviews — paid Website add-on. */}
                   <form
                     action={setBusinessFeatureAccess.bind(null, {
                       businessId: b.id,
@@ -88,11 +91,10 @@ export default async function SuperModulesPage() {
                           : ""
                       }
                     >
-                      Google Reviews ·{" "}
-                      {b.addOns.GOOGLE_REVIEWS ? "Enabled" : "Disabled"}
+                      Google Reviews · {b.addOns.GOOGLE_REVIEWS ? "Enabled" : "Disabled"}
                     </Button>
                   </form>
-                  {/* Catering — paid Restaurant add-on. Requires RESTAURANT module. */}
+
                   <form
                     action={setBusinessFeatureAccess.bind(null, {
                       businessId: b.id,
@@ -104,17 +106,44 @@ export default async function SuperModulesPage() {
                       type="submit"
                       size="sm"
                       variant={b.addOns.CATERING ? "default" : "outline"}
+                      disabled={!b.modules.RESTAURANT && !b.addOns.CATERING}
                       className={
                         b.addOns.CATERING
                           ? "bg-green-600 hover:bg-green-700 border-green-600 text-white"
                           : ""
                       }
                     >
-                      Catering ·{" "}
-                      {b.addOns.CATERING ? "Enabled" : "Disabled"}
+                      Catering · {b.addOns.CATERING ? "Enabled" : "Disabled"}
+                    </Button>
+                  </form>
+
+                  <form
+                    action={setBusinessFeatureAccess.bind(null, {
+                      businessId: b.id,
+                      key: RESTAURANT_BOOKING_FEATURE_KEY,
+                      enabled: !b.addOns.RESTAURANT_BOOKING,
+                    })}
+                  >
+                    <Button
+                      type="submit"
+                      size="sm"
+                      variant={b.addOns.RESTAURANT_BOOKING ? "default" : "outline"}
+                      disabled={!b.modules.RESTAURANT && !b.addOns.RESTAURANT_BOOKING}
+                      className={
+                        b.addOns.RESTAURANT_BOOKING
+                          ? "bg-green-600 hover:bg-green-700 border-green-600 text-white"
+                          : ""
+                      }
+                    >
+                      Restaurant Booking · {b.addOns.RESTAURANT_BOOKING ? "Enabled" : "Disabled"}
                     </Button>
                   </form>
                 </div>
+                {!b.modules.RESTAURANT && (
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    Restaurant add-ons require the RESTAURANT module.
+                  </p>
+                )}
               </div>
             </CardContent>
           </Card>
