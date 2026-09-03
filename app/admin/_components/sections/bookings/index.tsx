@@ -21,7 +21,7 @@ import type {
   AdminBooking,
   AdminProperty,
   BookingStatus,
-} from "../../types";
+} from "../../../types";
 
 const statusBadge: Record<
   BookingStatus,

@@ -12,8 +12,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { CustomerDialog } from "./customer-dialog";
-import type { AdminCustomer } from "../../types";
+import { CustomerDialog } from "./dialog";
+import type { AdminCustomer } from "../../../types";
 
 function fullName(c: AdminCustomer): string {
   return [c.firstName, c.lastName].filter(Boolean).join(" ") || c.name;

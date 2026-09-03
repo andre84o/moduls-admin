@@ -4,7 +4,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import type { DashboardStats } from "../../types";
+import type { DashboardStats } from "../../../types";
 
 export function OverviewSection({
   stats,

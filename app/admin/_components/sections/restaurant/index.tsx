@@ -8,7 +8,7 @@ import {
   createWebsiteSection,
   updateWebsiteSectionInternalName,
 } from "@/modules/website/actions";
-import { metaFor, sectionState, StateDot, SectionEditor, type SectionEditorHandle } from "./website";
+import { metaFor, sectionState, StateDot, SectionEditor, type SectionEditorHandle } from "../website";
 import type { AdminWebsitePageWithSections } from "@/modules/website/types";
 import type { AdminWebsiteSection } from "@/modules/website/types";
 

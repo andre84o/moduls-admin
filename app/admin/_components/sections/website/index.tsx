@@ -52,7 +52,7 @@ import {
   validateSectionContent,
   SectionFields,
   type SectionContent,
-} from "./website-section-fields";
+} from "./section-fields";
 
 /**
  * Admin Website Content editor — SPLIT VIEW.

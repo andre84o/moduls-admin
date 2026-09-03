@@ -23,7 +23,7 @@ import { PropertiesSection } from "./sections/properties";
 import { BookingsSection } from "./sections/bookings";
 import { CustomersSection } from "./sections/customers";
 import { WebsiteSection } from "./sections/website";
-import { GoogleReviewsSettings } from "./sections/google-reviews-settings";
+import { GoogleReviewsSettings } from "./sections/google-reviews";
 import { RestaurantSection } from "./sections/restaurant";
 
 export function AdminShell({

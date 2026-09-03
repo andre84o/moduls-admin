@@ -21,7 +21,7 @@ import {
   uploadPropertyImage,
   deleteMedia,
 } from "@/lib/actions";
-import type { AdminProperty, PropertyStatus } from "../../types";
+import type { AdminProperty, PropertyStatus } from "../../../types";
 
 const statusVariant: Record<
   PropertyStatus,

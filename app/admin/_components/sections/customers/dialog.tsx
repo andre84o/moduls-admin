@@ -15,7 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { upsertCustomer, updateCustomerNote } from "@/lib/actions";
-import type { AdminCustomer } from "../../types";
+import type { AdminCustomer } from "../../../types";
 
 const FIELDS = [
   { key: "firstName", label: "First name", type: "text" },
