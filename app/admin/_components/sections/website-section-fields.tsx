@@ -74,6 +74,9 @@ const EXTRA_EDITOR_TYPES = [
   "festEvent",
   // Nested categories→groups→items editor (MenuListFields).
   "menuList",
+  // Page-level menu intro: heading, eyebrow, intro text, allergy note.
+  // Used by future restaurant clients; does NOT contain menu items.
+  "menuIntro",
   // Global site footer (nav links, contact, hours, delivery, copyright).
   "restaurantFooter",
 ] as const;
@@ -272,6 +275,10 @@ export function validateSectionContent(
         return "Primär knapptext (avslutande sektion) krävs.";
       if (!str(primary.href).trim())
         return "Primär knapplänk (avslutande sektion) krävs.";
+      return null;
+    }
+    case "menuIntro": {
+      if (!str(content.heading).trim()) return "Heading is required.";
       return null;
     }
     case "menuList": {
@@ -2736,6 +2743,55 @@ function MenuListFields({
   );
 }
 
+// ─── menuIntro editor ─────────────────────────────────────────────────
+// Page-level intro for a menu section: heading, eyebrow, intro, allergy note.
+// Future restaurant clients use this under Website; menu items live in menuList.
+
+function MenuIntroFields({
+  id,
+  content,
+  onChange,
+}: {
+  id: string;
+  content: SectionContent;
+  onChange: (next: SectionContent) => void;
+}) {
+  const set = (patch: SectionContent) => onChange({ ...content, ...patch });
+  return (
+    <div className="grid gap-4 sm:grid-cols-2">
+      <Field label="Eyebrow" htmlFor={`${id}-eyebrow`}>
+        <Input
+          id={`${id}-eyebrow`}
+          value={str(content.eyebrow)}
+          onChange={(e) => set({ eyebrow: e.target.value })}
+        />
+      </Field>
+      <Field label="Heading" htmlFor={`${id}-heading`}>
+        <Input
+          id={`${id}-heading`}
+          value={str(content.heading)}
+          onChange={(e) => set({ heading: e.target.value })}
+        />
+      </Field>
+      <Field label="Intro text" htmlFor={`${id}-intro`} className="sm:col-span-2">
+        <Textarea
+          id={`${id}-intro`}
+          value={str(content.intro)}
+          onChange={(e) => set({ intro: e.target.value })}
+          className="min-h-20"
+        />
+      </Field>
+      <Field label="Allergy note" htmlFor={`${id}-allergyNote`} className="sm:col-span-2">
+        <Input
+          id={`${id}-allergyNote`}
+          value={str(content.allergyNote)}
+          onChange={(e) => set({ allergyNote: e.target.value })}
+        />
+      </Field>
+    </div>
+  );
+}
+
 // ─── festEvent editor (Fest & Event / Julbord / Alla hjärtans dag) ─────
 
 /**
@@ -3547,6 +3603,8 @@ export function SectionFields({
       return (
         <CateringMenusFields id={id} content={content} onChange={onChange} />
       );
+    case "menuIntro":
+      return <MenuIntroFields id={id} content={content} onChange={onChange} />;
     case "menuList":
       return <MenuListFields id={id} content={content} onChange={onChange} />;
     case "festEvent":

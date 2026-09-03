@@ -332,6 +332,53 @@ export async function updateWebsiteSectionDraft(input: {
   return {};
 }
 
+/**
+ * Rename a section's internal admin label without affecting draft/publish state.
+ * Writes internalName into both draftContent and publishedContent so the two
+ * stay in sync and the section does not enter a "has draft changes" state.
+ */
+export async function updateWebsiteSectionInternalName(input: {
+  id: string;
+  internalName: string;
+}): Promise<{ error?: string }> {
+  const access = await requireModule("WEBSITE", { allowedRoles: [...WEBSITE_WRITER_ROLES] });
+  const id = input.id.trim();
+  if (!id) return { error: "Missing section id." };
+  if (access.isDemo) return {};
+
+  const prisma = getPrisma();
+
+  const row = await prisma.websiteSection.findFirst({
+    where: { id, businessId: access.businessId },
+    select: { draftContent: true, publishedContent: true },
+  });
+  if (!row) return { error: "Section not found." };
+
+  const draft =
+    row.draftContent && typeof row.draftContent === "object" && !Array.isArray(row.draftContent)
+      ? (row.draftContent as Record<string, unknown>)
+      : {};
+  const published =
+    row.publishedContent && typeof row.publishedContent === "object" && !Array.isArray(row.publishedContent)
+      ? (row.publishedContent as Record<string, unknown>)
+      : null;
+
+  const name = input.internalName.trim();
+
+  await prisma.websiteSection.updateMany({
+    where: { id, businessId: access.businessId },
+    data: {
+      draftContent: toJsonInput({ ...draft, internalName: name }),
+      ...(published !== null && {
+        publishedContent: toJsonInput({ ...published, internalName: name }),
+      }),
+    },
+  });
+
+  revalidatePath("/admin");
+  return {};
+}
+
 /** Show/hide a section. Scoped by businessId. */
 export async function setWebsiteSectionVisibility(
   id: string,

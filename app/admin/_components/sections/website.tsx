@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, type ComponentType } from "react";
+import { useState, useTransition, useImperativeHandle, useEffect, forwardRef, type ComponentType } from "react";
 import {
   EyeOff,
   Save,
@@ -138,6 +138,11 @@ const SECTION_META: Record<string, SectionMeta> = {
     help: "Ett rutnät med dina foton.",
     icon: Images,
   },
+  menuIntro: {
+    label: "Menu intro",
+    help: "Heading, intro text and allergy note shown above the menu.",
+    icon: BookOpen,
+  },
   menuList: {
     label: "Menylista",
     help: "Dina menykategorier, grupper och priser.",
@@ -192,7 +197,7 @@ function pageDisplayName(p: { title: string; key: string; slug: string | null })
   return p.title;
 }
 
-function metaFor(type: string): SectionMeta {
+export function metaFor(type: string): SectionMeta {
   return (
     SECTION_META[type] ?? {
       label: prettifyType(type),
@@ -216,7 +221,7 @@ function prettyJson(v: WebsiteContent): string {
 
 // Section status → one of three plain-language states for dots and pills.
 type SectionState = "draft" | "live" | "hidden";
-function sectionState(section: AdminWebsiteSection): SectionState {
+export function sectionState(section: AdminWebsiteSection): SectionState {
   if (!sameContent(section.draftContent, section.publishedContent))
     return "draft";
   return section.isVisible ? "live" : "hidden";
@@ -420,7 +425,7 @@ export function WebsiteSection({
 
 // ─── small presentational pieces ──────────────────────────────────────
 
-function StateDot({ state }: { state: SectionState }) {
+export function StateDot({ state }: { state: SectionState }) {
   if (state === "draft")
     return (
       <span
@@ -514,7 +519,18 @@ function asContentObject(v: WebsiteContent): SectionContent {
  * exposes the raw JSON, which is also the only editor for types without one.
  * Save validates then writes via the tenant-scoped server action.
  */
-function SectionEditor({ section }: { section: AdminWebsiteSection }) {
+export interface SectionEditorHandle {
+  save: () => void;
+  publish: () => void;
+}
+
+export const SectionEditor = forwardRef<
+  SectionEditorHandle,
+  {
+    section: AdminWebsiteSection;
+    onStateChange?: (state: { hasUnsavedEdits: boolean; hasUnpublished: boolean }) => void;
+  }
+>(function SectionEditor({ section, onStateChange }, ref) {
   const meta = metaFor(section.type);
   const known = hasFieldEditor(section.type);
   const [content, setContent] = useState<SectionContent>(() =>
@@ -591,6 +607,12 @@ function SectionEditor({ section }: { section: AdminWebsiteSection }) {
       setJsonError("Invalid JSON — fix the syntax and try again.");
     }
   }
+
+  useImperativeHandle(ref, () => ({ save: saveDraft, publish }));
+
+  useEffect(() => {
+    onStateChange?.({ hasUnsavedEdits, hasUnpublished });
+  }, [hasUnsavedEdits, hasUnpublished, onStateChange]);
 
   function saveDraft() {
     let toSave: WebsiteContent;
@@ -738,4 +760,4 @@ function SectionEditor({ section }: { section: AdminWebsiteSection }) {
       </div>
     </div>
   );
-}
+});

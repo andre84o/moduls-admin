@@ -177,7 +177,10 @@ export function AdminShell({
               />
             )}
             {effectiveActive === "restaurant" && (
-              <RestaurantSection pages={restaurantPages} />
+              <RestaurantSection
+                pages={restaurantPages}
+                defaultPageId={websitePages[0]?.id ?? null}
+              />
             )}
           </div>
         </main>
