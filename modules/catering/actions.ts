@@ -5,7 +5,7 @@ import { resolvePublicBusinessId } from "@/lib/public-tenant";
 import { hasBusinessFeatureAccess, CATERING_FEATURE_KEY } from "@/lib/feature-access";
 import { isRestaurantEnabled } from "@/modules/restaurant/guards";
 import { notifyCateringRequest } from "@/lib/email";
-import { CATERING_MENUS } from "./config";
+import { getPublicCateringMenus } from "./queries";
 
 /**
  * Public catering enquiry submission.
@@ -34,41 +34,6 @@ function str(formData: FormData, key: string): string {
   return typeof v === "string" ? v.trim() : "";
 }
 
-/**
- * Derives allowed menu strings from the published cateringMenus section so
- * admin changes to menu titles/prices are reflected automatically. Falls back
- * to the static CATERING_MENUS config if no published content exists.
- */
-async function getPublishedMenuStrings(
-  businessId: string,
-): Promise<readonly string[]> {
-  try {
-    const section = await getPrisma().websiteSection.findFirst({
-      where: { page: { businessId }, type: "cateringMenus" },
-      select: { publishedContent: true },
-      orderBy: { sortOrder: "asc" },
-    });
-
-    const content = section?.publishedContent as Record<string, unknown> | null;
-    const menus = Array.isArray(content?.menus) ? content!.menus : [];
-
-    const strings = (menus as unknown[])
-      .filter(
-        (m): m is Record<string, unknown> =>
-          m !== null && typeof m === "object",
-      )
-      .map((m) => {
-        const title = typeof m.title === "string" ? m.title.trim() : "";
-        const price = typeof m.price === "string" ? m.price.trim() : "";
-        return `${title} – ${price}`;
-      })
-      .filter((s) => s.length > 3 && s !== " – ");
-
-    return strings.length > 0 ? strings : CATERING_MENUS;
-  } catch {
-    return CATERING_MENUS;
-  }
-}
 
 export async function submitCateringRequest(
   _prev: CateringFormState,
@@ -98,7 +63,7 @@ export async function submitCateringRequest(
     return { error: "Could not send right now. Please try again later." };
   }
 
-  const allowedMenus = await getPublishedMenuStrings(businessId);
+  const allowedMenus = await getPublicCateringMenus(businessId);
 
   const fieldErrors: Record<string, string> = {};
   if (name.length < 2 || name.length > 100)

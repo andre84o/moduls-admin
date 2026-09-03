@@ -1,7 +1,38 @@
+import { resolvePublicBusinessId } from "@/lib/public-tenant";
+import { isRestaurantEnabled } from "@/modules/restaurant/guards";
+import { hasBusinessFeatureAccess, CATERING_FEATURE_KEY } from "@/lib/feature-access";
+import { getPublicCateringMenus } from "@/modules/catering/queries";
 import { CateringForm } from "@/components/CateringForm";
-import { CATERING_MENUS } from "@/modules/catering/config";
 
-export default function CateringPage() {
+export default async function CateringPage() {
+  const businessId = await resolvePublicBusinessId();
+
+  if (!businessId) {
+    return (
+      <main className="min-h-screen bg-background py-16">
+        <p className="text-center text-muted-foreground">
+          Catering är inte tillgänglig just nu.
+        </p>
+      </main>
+    );
+  }
+
+  const [restaurantEnabled, cateringEnabled, menus] = await Promise.all([
+    isRestaurantEnabled(businessId),
+    hasBusinessFeatureAccess(businessId, CATERING_FEATURE_KEY),
+    getPublicCateringMenus(businessId),
+  ]);
+
+  if (!restaurantEnabled || !cateringEnabled) {
+    return (
+      <main className="min-h-screen bg-background py-16">
+        <p className="text-center text-muted-foreground">
+          Catering är inte tillgänglig just nu.
+        </p>
+      </main>
+    );
+  }
+
   return (
     <main className="min-h-screen bg-background py-16">
       <div className="mx-auto max-w-xl px-4">
@@ -13,7 +44,7 @@ export default function CateringPage() {
         </div>
 
         <CateringForm
-          menus={CATERING_MENUS}
+          menus={menus}
           successText="Tack! Vi har tagit emot din förfrågan och återkommer så snart vi kan."
           consentLabel="Jag godkänner att mina kontaktuppgifter sparas i samband med denna förfrågan."
         />
