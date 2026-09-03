@@ -147,9 +147,10 @@ export async function updateWebsitePageDraft(input: {
 }
 
 /**
- * Publish a page: copy its draft content into published, mark it PUBLISHED, and
- * publish every section under it (draft -> published). All writes are scoped by
- * businessId and run in one transaction so the page never goes live partially.
+ * Publish a page. When RESTAURANT is enabled, behavior stays unchanged and all
+ * page sections are published. When RESTAURANT is disabled, restaurant-specific
+ * sections are left completely untouched so generic WEBSITE content on a mixed
+ * page can still be published independently.
  */
 export async function publishWebsitePage(id: string): Promise<{ error?: string }> {
   const access = await requireModule("WEBSITE", { allowedRoles: [...WEBSITE_WRITER_ROLES] });
@@ -165,13 +166,13 @@ export async function publishWebsitePage(id: string): Promise<{ error?: string }
   });
   if (!page) return { error: "Page not found." };
 
-  // Publishing a page flushes ALL its sections — if any are restaurant-specific,
-  // the RESTAURANT module must be enabled for this business.
-  if (page.sections.some((s) => isRestaurantSectionType(s.type))) {
-    if (!(await isModuleEnabledForBusiness(access.businessId, "RESTAURANT"))) {
-      return { error: "Restaurant module is not enabled." };
-    }
-  }
+  const restaurantEnabled = await isModuleEnabledForBusiness(
+    access.businessId,
+    "RESTAURANT",
+  );
+  const sectionsToPublish = restaurantEnabled
+    ? page.sections
+    : page.sections.filter((s) => !isRestaurantSectionType(s.type));
 
   await prisma.$transaction([
     prisma.websitePage.updateMany({
@@ -181,7 +182,7 @@ export async function publishWebsitePage(id: string): Promise<{ error?: string }
         publishedContent: toJsonInput(page.draftContent as WebsiteContent),
       },
     }),
-    ...page.sections.map((s) =>
+    ...sectionsToPublish.map((s) =>
       prisma.websiteSection.updateMany({
         where: { id: s.id, businessId: access.businessId },
         data: { publishedContent: toJsonInput(s.draftContent as WebsiteContent) },
@@ -195,7 +196,12 @@ export async function publishWebsitePage(id: string): Promise<{ error?: string }
     action: "website_page.published",
     entityType: "WebsitePage",
     entityId: id,
-    metadata: { sections: page.sections.length },
+    metadata: {
+      sections: sectionsToPublish.length,
+      restaurantSectionsSkipped: restaurantEnabled
+        ? 0
+        : page.sections.length - sectionsToPublish.length,
+    },
   });
   revalidatePath("/admin");
   return {};
@@ -206,7 +212,26 @@ export async function deleteWebsitePage(id: string): Promise<void> {
   const access = await requireModule("WEBSITE", { allowedRoles: [...WEBSITE_WRITER_ROLES] });
   if (access.isDemo) return;
 
-  const { count } = await getPrisma().websitePage.deleteMany({
+  const prisma = getPrisma();
+  // Deleting a page cascades to every section. Resolve the stored section types
+  // server-side first so RESTAURANT content cannot be removed through a generic
+  // WEBSITE page delete while the RESTAURANT module is disabled.
+  const page = await prisma.websitePage.findFirst({
+    where: { id, businessId: access.businessId },
+    select: {
+      id: true,
+      sections: { select: { type: true } },
+    },
+  });
+  if (!page) return;
+
+  if (page.sections.some((s) => isRestaurantSectionType(s.type))) {
+    if (!(await isModuleEnabledForBusiness(access.businessId, "RESTAURANT"))) {
+      return;
+    }
+  }
+
+  const { count } = await prisma.websitePage.deleteMany({
     where: { id, businessId: access.businessId },
   });
   if (count === 0) return; // foreign/unknown id — nothing deleted, nothing to log
