@@ -8,10 +8,8 @@ import { AdminSidebarContent } from "../../_components/admin-sidebar";
 
 export function SuperAdminShell({
   children,
-  enabledModules,
 }: {
   children: React.ReactNode;
-  enabledModules: string[];
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const sidebarRef = useRef<HTMLElement>(null);
@@ -65,7 +63,7 @@ export function SuperAdminShell({
           <AdminSidebarContent
             businesses={[]}
             activeBusinessId={null}
-            enabledModules={enabledModules}
+            enabledModules={[]}
             isSuperAdmin
             activeSection={null}
             moduleSettingsActive
