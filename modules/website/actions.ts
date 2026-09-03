@@ -207,45 +207,6 @@ export async function publishWebsitePage(id: string): Promise<{ error?: string }
   return {};
 }
 
-/** Delete a page and (via cascade) its sections. Scoped by businessId. */
-export async function deleteWebsitePage(id: string): Promise<void> {
-  const access = await requireModule("WEBSITE", { allowedRoles: [...WEBSITE_WRITER_ROLES] });
-  if (access.isDemo) return;
-
-  const prisma = getPrisma();
-  // Deleting a page cascades to every section. Resolve the stored section types
-  // server-side first so RESTAURANT content cannot be removed through a generic
-  // WEBSITE page delete while the RESTAURANT module is disabled.
-  const page = await prisma.websitePage.findFirst({
-    where: { id, businessId: access.businessId },
-    select: {
-      id: true,
-      sections: { select: { type: true } },
-    },
-  });
-  if (!page) return;
-
-  if (page.sections.some((s) => isRestaurantSectionType(s.type))) {
-    if (!(await isModuleEnabledForBusiness(access.businessId, "RESTAURANT"))) {
-      return;
-    }
-  }
-
-  const { count } = await prisma.websitePage.deleteMany({
-    where: { id, businessId: access.businessId },
-  });
-  if (count === 0) return; // foreign/unknown id — nothing deleted, nothing to log
-
-  await writeAuditLog({
-    businessId: access.businessId,
-    userId: access.userId,
-    action: "website_page.deleted",
-    entityType: "WebsitePage",
-    entityId: id,
-  });
-  revalidatePath("/admin");
-}
-
 // ─── Sections ─────────────────────────────────────────────────────────
 
 /**
