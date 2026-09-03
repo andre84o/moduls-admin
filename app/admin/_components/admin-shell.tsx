@@ -18,6 +18,7 @@ import type {
   AdminGoogleReviewSettings,
   AdminCachedGoogleReviews,
 } from "@/modules/website/google-reviews/queries";
+import { isRestaurantSectionType } from "@/modules/restaurant/section-types";
 import { PropertiesSection } from "./sections/properties";
 import { BookingsSection } from "./sections/bookings";
 import { CustomersSection } from "./sections/customers";
@@ -99,6 +100,17 @@ export function AdminShell({
   // the page + actions are guarded server-side by requireSuperAdmin.
   const isSuperAdmin = businesses.some((b) => b.role === "SUPER_ADMIN");
 
+  // Split pages by section type so the Website tab and Restaurant tab each show
+  // only their own content. Pages that contain both kinds are split safely —
+  // sections are filtered per tab, the underlying data is never duplicated.
+  const genericPages = websitePages
+    .map((p) => ({ ...p, sections: p.sections.filter((s) => !isRestaurantSectionType(s.type)) }))
+    .filter((p) => p.sections.length > 0);
+
+  const restaurantPages = websitePages
+    .map((p) => ({ ...p, sections: p.sections.filter((s) => isRestaurantSectionType(s.type)) }))
+    .filter((p) => p.sections.length > 0);
+
   return (
     <div className="flex h-screen flex-col bg-muted/30">
       {/* Header — full width, on top. Sidebar starts below it. */}
@@ -155,7 +167,7 @@ export function AdminShell({
               <CustomersSection customers={customers} />
             )}
             {effectiveActive === "website" && (
-              <WebsiteSection pages={websitePages} />
+              <WebsiteSection pages={genericPages} />
             )}
             {effectiveActive === "googleReviews" && googleReviewsAddOnEnabled && (
               <GoogleReviewsSettings
@@ -165,7 +177,7 @@ export function AdminShell({
               />
             )}
             {effectiveActive === "restaurant" && (
-              <RestaurantSection pages={websitePages} />
+              <RestaurantSection pages={restaurantPages} />
             )}
           </div>
         </main>

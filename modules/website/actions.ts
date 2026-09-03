@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { Prisma } from "@/app/generated/prisma/client";
 import { getPrisma } from "@/lib/prisma";
-import { requireModule } from "@/lib/modules";
+import { requireModule, isModuleEnabledForBusiness } from "@/lib/modules";
+import { isRestaurantSectionType } from "@/modules/restaurant/section-types";
 import { writeAuditLog } from "@/lib/audit";
 import { normalizeKey, normalizeSlug, nextSortOrder, planMissingSections } from "./utils";
 import type { WebsiteContent } from "./types";
@@ -159,10 +160,18 @@ export async function publishWebsitePage(id: string): Promise<{ error?: string }
     where: { id, businessId: access.businessId },
     select: {
       draftContent: true,
-      sections: { select: { id: true, draftContent: true } },
+      sections: { select: { id: true, type: true, draftContent: true } },
     },
   });
   if (!page) return { error: "Page not found." };
+
+  // Publishing a page flushes ALL its sections — if any are restaurant-specific,
+  // the RESTAURANT module must be enabled for this business.
+  if (page.sections.some((s) => isRestaurantSectionType(s.type))) {
+    if (!(await isModuleEnabledForBusiness(access.businessId, "RESTAURANT"))) {
+      return { error: "Restaurant module is not enabled." };
+    }
+  }
 
   await prisma.$transaction([
     prisma.websitePage.updateMany({
@@ -232,6 +241,13 @@ export async function createWebsiteSection(input: {
   if (!type) return { error: "A section type is required." };
   if (access.isDemo) return {};
 
+  // Restaurant-specific section types require RESTAURANT in addition to WEBSITE.
+  if (isRestaurantSectionType(type)) {
+    if (!(await isModuleEnabledForBusiness(access.businessId, "RESTAURANT"))) {
+      return { error: "Restaurant module is not enabled." };
+    }
+  }
+
   const prisma = getPrisma();
 
   // Verify the page belongs to this business before attaching a section to it.
@@ -286,16 +302,34 @@ export async function updateWebsiteSectionDraft(input: {
   if (!id) return { error: "Missing section id." };
   if (access.isDemo) return {};
 
+  const prisma = getPrisma();
+
+  // Resolve the stored type server-side — never trust a type supplied by the
+  // client for security gating (client could re-label a restaurant section as
+  // generic to bypass the guard). We check both the stored AND requested type.
+  const existingRow = await prisma.websiteSection.findFirst({
+    where: { id, businessId: access.businessId },
+    select: { type: true },
+  });
+  const newType = input.type?.trim();
+  if (
+    (existingRow && isRestaurantSectionType(existingRow.type)) ||
+    (newType && isRestaurantSectionType(newType))
+  ) {
+    if (!(await isModuleEnabledForBusiness(access.businessId, "RESTAURANT"))) {
+      return { error: "Restaurant module is not enabled." };
+    }
+  }
+
   const data: Prisma.WebsiteSectionUpdateManyMutationInput = {};
   if (input.draftContent !== undefined) data.draftContent = toJsonInput(input.draftContent);
-  if (input.type !== undefined) {
-    const type = input.type.trim();
-    if (!type) return { error: "A section type is required." };
-    data.type = type;
+  if (newType !== undefined) {
+    if (!newType) return { error: "A section type is required." };
+    data.type = newType;
   }
   if (input.isVisible !== undefined) data.isVisible = input.isVisible;
 
-  const { count } = await getPrisma().websiteSection.updateMany({
+  const { count } = await prisma.websiteSection.updateMany({
     where: { id, businessId: access.businessId },
     data,
   });
@@ -320,7 +354,18 @@ export async function setWebsiteSectionVisibility(
   const access = await requireModule("WEBSITE", { allowedRoles: [...WEBSITE_WRITER_ROLES] });
   if (access.isDemo) return;
 
-  const { count } = await getPrisma().websiteSection.updateMany({
+  const prisma = getPrisma();
+
+  // Resolve stored type server-side before applying the guard.
+  const existingRow = await prisma.websiteSection.findFirst({
+    where: { id, businessId: access.businessId },
+    select: { type: true },
+  });
+  if (existingRow && isRestaurantSectionType(existingRow.type)) {
+    if (!(await isModuleEnabledForBusiness(access.businessId, "RESTAURANT"))) return;
+  }
+
+  const { count } = await prisma.websiteSection.updateMany({
     where: { id, businessId: access.businessId },
     data: { isVisible },
   });
@@ -349,9 +394,15 @@ export async function publishWebsiteSection(id: string): Promise<{ error?: strin
   const prisma = getPrisma();
   const section = await prisma.websiteSection.findFirst({
     where: { id, businessId: access.businessId },
-    select: { draftContent: true },
+    select: { type: true, draftContent: true },
   });
   if (!section) return { error: "Section not found." };
+
+  if (isRestaurantSectionType(section.type)) {
+    if (!(await isModuleEnabledForBusiness(access.businessId, "RESTAURANT"))) {
+      return { error: "Restaurant module is not enabled." };
+    }
+  }
 
   await prisma.websiteSection.updateMany({
     where: { id, businessId: access.businessId },
@@ -374,7 +425,19 @@ export async function deleteWebsiteSection(id: string): Promise<void> {
   const access = await requireModule("WEBSITE", { allowedRoles: [...WEBSITE_WRITER_ROLES] });
   if (access.isDemo) return;
 
-  const { count } = await getPrisma().websiteSection.deleteMany({
+  const prisma = getPrisma();
+
+  // Resolve stored type server-side — don't trust the caller; the section may
+  // have been a restaurant section regardless of what the client claims.
+  const existingRow = await prisma.websiteSection.findFirst({
+    where: { id, businessId: access.businessId },
+    select: { type: true },
+  });
+  if (existingRow && isRestaurantSectionType(existingRow.type)) {
+    if (!(await isModuleEnabledForBusiness(access.businessId, "RESTAURANT"))) return;
+  }
+
+  const { count } = await prisma.websiteSection.deleteMany({
     where: { id, businessId: access.businessId },
   });
   if (count === 0) return; // foreign/unknown id — nothing deleted

@@ -5,6 +5,7 @@ import { isDemoMode } from "@/lib/config";
 import type { Section } from "@/components/sections/types";
 import { mapPublishedSections, pickPublicBusinessId } from "./utils";
 import { getPublicGoogleReviews } from "./google-reviews/queries-public";
+import { isRestaurantSectionType } from "@/modules/restaurant/section-types";
 
 /**
  * PUBLIC, sessionless read layer for the Website content module.
@@ -85,7 +86,15 @@ export async function getPublishedPageSections(
   });
   if (!page) return null;
 
-  const sections = mapPublishedSections(page.sections);
+  // When the RESTAURANT module is disabled, strip restaurant-specific section
+  // types from the public render. Generic WEBSITE sections still render;
+  // restaurant data stays in the DB untouched.
+  const restaurantEnabled = await isModuleEnabledForBusiness(businessId, "RESTAURANT");
+  const visibleSections = restaurantEnabled
+    ? page.sections
+    : page.sections.filter((s) => !isRestaurantSectionType(s.type));
+
+  const sections = mapPublishedSections(visibleSections);
   const enriched = await injectGoogleReviews(businessId, sections);
   return enriched.length > 0 ? enriched : null;
 }
