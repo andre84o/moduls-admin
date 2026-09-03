@@ -1,12 +1,13 @@
-
+import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 /**
- * Optimistic route protection. Runs before cache on matching routes and only
- * checks for the presence of a Supabase auth cookie (no DB). The real
- * authorization happens server-side in requireBusinessAccess() (lib/auth.ts).
+ * Proxy (ersätter middleware). Kör innan cache på matchade routes.
  *
- * When Supabase isn't configured the app runs in demo mode and /admin is open.
+ * Gör två saker:
+ * 1. Refreshar Supabase-sessionen och synkar cookies (token-rotation).
+ * 2. Optimistisk route-skydd: skyddar /admin om ingen auth-cookie finns.
+ *    Den verkliga auktoriseringen sker server-side i requireBusinessAccess().
  */
 
 function supabaseConfigured(): boolean {
@@ -14,33 +15,53 @@ function supabaseConfigured(): boolean {
   return Boolean(url && /^https?:\/\//i.test(url) && !url.includes("["));
 }
 
-function hasSupabaseSession(req: NextRequest): boolean {
-  // Supabase stores the session in cookies named sb-<ref>-auth-token(.N).
-  return req.cookies
-    .getAll()
-    .some((c) => c.name.startsWith("sb-") && c.name.includes("-auth-token"));
-}
+export default async function proxy(req: NextRequest) {
+  let response = NextResponse.next({ request: req });
 
-export default function proxy(req: NextRequest) {
-  // Demo mode: no auth provider — leave routing untouched.
-  if (!supabaseConfigured()) return NextResponse.next();
+  // Demo mode: ingen auth-provider — lämna routing orörd.
+  if (!supabaseConfigured()) return response;
+
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return req.cookies.getAll();
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value }) =>
+            req.cookies.set(name, value),
+          );
+          response = NextResponse.next({ request: req });
+          cookiesToSet.forEach(({ name, value, options }) =>
+            response.cookies.set(name, value, options),
+          );
+        },
+      },
+    },
+  );
+
+  // Refreshar access-token och synkar cookies. Använd getUser() — getSession()
+  // validerar inte mot Supabase-servern och kan returnera stale data.
+  const { data: { user } } = await supabase.auth.getUser();
 
   const { pathname } = req.nextUrl;
-  const signedIn = hasSupabaseSession(req);
 
-  if (pathname.startsWith("/admin") && !signedIn) {
+  if (pathname.startsWith("/admin") && !user) {
     return NextResponse.redirect(new URL("/login", req.nextUrl));
   }
 
-  // NOTE: We deliberately do NOT redirect /login -> /admin here. Proxy only
-  // sees whether an auth cookie *exists*, not whether it's valid. A stale or
-  // invalid cookie would bounce /login -> /admin -> (getUser() fails) -> /login
-  // forever (ERR_TOO_MANY_REDIRECTS). The real, validated "already signed in?"
-  // check lives server-side in app/login/page.tsx via getCurrentUser().
+  // NOTE: Vi redirectar medvetet INTE /login -> /admin här. Proxy kör
+  // getUser() nu, men om redirect-kedjan av någon anledning bryts skulle en
+  // loop kunna uppstå. Den validerade "redan inloggad?"-kontrollen lever
+  // server-side i app/login/page.tsx via getCurrentUser().
 
-  return NextResponse.next();
+  return response;
 }
 
 export const config = {
-  matcher: ["/admin/:path*", "/login"],
+  matcher: [
+    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+  ],
 };

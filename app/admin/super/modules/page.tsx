@@ -49,6 +49,11 @@ export default async function SuperModulesPage() {
                           type="submit"
                           size="sm"
                           variant={on ? "default" : "outline"}
+                          className={
+                            on
+                              ? "bg-green-600 hover:bg-green-700 border-green-600 text-white"
+                              : ""
+                          }
                         >
                           {m} · {on ? "Enabled" : "Disabled"}
                         </Button>
@@ -78,6 +83,11 @@ export default async function SuperModulesPage() {
                       type="submit"
                       size="sm"
                       variant={b.addOns.GOOGLE_REVIEWS ? "default" : "outline"}
+                      className={
+                        b.addOns.GOOGLE_REVIEWS
+                          ? "bg-green-600 hover:bg-green-700 border-green-600 text-white"
+                          : ""
+                      }
                     >
                       Google Reviews ·{" "}
                       {b.addOns.GOOGLE_REVIEWS ? "Enabled" : "Disabled"}
