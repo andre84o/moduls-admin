@@ -37,18 +37,26 @@ Definieras i `modules/restaurant/section-types.ts`:
 
 ```
 modules/restaurant/
-  section-types.ts   – set-konstanter + isRestaurantSectionType / isCateringSectionType
-  guards.ts          – requireRestaurantModule() / isRestaurantEnabled()
-  queries.ts         – isCateringAddOnEnabled()
+  section-types.ts        – set-konstanter + isRestaurantSectionType / isCateringSectionType
+  guards.ts               – requireRestaurantModule() / isRestaurantEnabled()
+  queries.ts              – isCateringAddOnEnabled()
 
-app/admin/_components/sections/
-  restaurant.tsx     – RestaurantSection (flat sektionslista, inline rename, sticky knappar)
+modules/catering/
+  actions.ts              – submitCateringRequest() (publik förfrågan, honeypot, e-post)
+  config.ts               – CATERING_MENUS (statisk fallback-lista)
 
-app/admin/_components/sections/website-section-fields.tsx
-                     – CateringMenusFields, CateringIntroFields, MenuListFields (delade med Website-editorn)
+components/CateringForm/
+  index.tsx               – Publikt 3-stegsformulär för cateringförfrågan
 
-app/admin/_components/sections/website.tsx
-                     – SectionEditor (delad), SECTION_META för alla restaurant-typer
+app/catering/
+  page.tsx                – Preview-sida för formuläret (ej auth-skyddad)
+
+app/admin/_components/sections/restaurant/
+  index.tsx               – RestaurantSection (flat sektionslista, inline rename, sticky knappar)
+
+app/admin/_components/sections/website/
+  index.tsx               – SectionEditor (delad), SECTION_META för alla restaurant-typer
+  section-fields.tsx      – CateringMenusFields, CateringIntroFields, MenuListFields
 ```
 
 ---
