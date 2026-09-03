@@ -5,7 +5,7 @@ import { requireSuperAdmin } from "./auth";
 import { getPrisma } from "./prisma";
 import { writeAuditLog } from "./audit";
 import { isDemoMode } from "./config";
-import { KNOWN_FEATURE_KEYS } from "./feature-access";
+import { KNOWN_FEATURE_KEYS, CATERING_FEATURE_KEY } from "./feature-access";
 import type { ProjectType } from "@/app/generated/prisma/enums";
 
 /**
@@ -103,5 +103,47 @@ export async function setBusinessFeatureAccess(input: {
     metadata: { key },
   });
 
+  // When CATERING is enabled, seed a default cateringMenus section if none
+  // exists so the admin sees it immediately without clicking "Add menu".
+  if (enabled && key === CATERING_FEATURE_KEY) {
+    const prisma = getPrisma();
+    const page = await prisma.websitePage.findFirst({
+      where: { businessId },
+      select: { id: true },
+      orderBy: { sortOrder: "asc" },
+    });
+
+    if (page) {
+      const existing = await prisma.websiteSection.findFirst({
+        where: { businessId, type: "cateringMenus" },
+        select: { id: true },
+      });
+
+      if (!existing) {
+        const orders = await prisma.websiteSection.findMany({
+          where: { businessId, pageId: page.id },
+          select: { sortOrder: true },
+        });
+        const maxOrder =
+          orders.length > 0
+            ? Math.max(...orders.map((o) => o.sortOrder))
+            : -1;
+
+        // Platform-level access: SUPER_ADMIN seeds default content on behalf of the business.
+        await prisma.websiteSection.create({
+          data: {
+            businessId,
+            pageId: page.id,
+            type: "cateringMenus",
+            sortOrder: maxOrder + 1,
+            draftContent: {},
+            publishedContent: {},
+          },
+        });
+      }
+    }
+  }
+
   revalidatePath("/admin/super/modules");
+  revalidatePath("/admin");
 }
