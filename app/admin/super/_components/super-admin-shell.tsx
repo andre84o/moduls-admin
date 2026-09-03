@@ -65,7 +65,7 @@ export function SuperAdminShell({
           <AdminSidebarContent
             businesses={[]}
             activeBusinessId={null}
-            enabledModules={enabledModules}
+            enabledModules={enabledModules.filter((m) => m === "WEBSITE")}
             isSuperAdmin
             activeSection={null}
             moduleSettingsActive
