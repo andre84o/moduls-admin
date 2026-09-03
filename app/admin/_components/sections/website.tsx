@@ -168,6 +168,11 @@ const SECTION_META: Record<string, SectionMeta> = {
     help: "Cateringtextsektioner och listan över tillfällen.",
     icon: FileText,
   },
+  cateringIntro: {
+    label: "Catering intro",
+    help: "Heading, intro text and note shown above the catering menus.",
+    icon: BookOpen,
+  },
   cateringMenus: {
     label: "Cateringmenyer",
     help: "De fasta cateringmenyerna med rätter, taggar och priser.",

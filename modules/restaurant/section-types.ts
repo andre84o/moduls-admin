@@ -12,6 +12,7 @@
 export const RESTAURANT_SECTION_TYPES = new Set<string>([
   "menuList",
   "cateringMenus",
+  "cateringIntro",
 ]);
 
 export function isRestaurantSectionType(type: string): boolean {
