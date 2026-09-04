@@ -65,11 +65,12 @@ function localDayKey(value: string): string {
   return `${year}-${month}-${day}`;
 }
 
-function fmtDateTime(value: string): string {
-  return new Date(value).toLocaleString(undefined, {
+function fmtDateTime(value: string, timeZone: string): string {
+  return new Intl.DateTimeFormat("en-GB", {
     dateStyle: "medium",
     timeStyle: "short",
-  });
+    timeZone,
+  }).format(new Date(value));
 }
 
 function numberFrom(formData: FormData, key: string): number {
@@ -374,7 +375,7 @@ export function RestaurantBookingsSection({
                       <div>
                         <p className="font-medium">{booking.guestName}</p>
                         <p className="text-sm text-muted-foreground">
-                          {fmtDateTime(booking.startAt)} · {booking.partySize} guests
+                          {fmtDateTime(booking.startAt, settings.timezone ?? "Europe/Stockholm")} · {booking.partySize} guests
                         </p>
                       </div>
                       <div className="flex items-center gap-2">
@@ -463,7 +464,7 @@ export function RestaurantBookingsSection({
                           <Badge variant={badge.variant}>{badge.label}</Badge>
                         </CardTitle>
                         <p className="mt-1 text-sm text-muted-foreground">
-                          {fmtDateTime(booking.startAt)} · {booking.partySize} guests
+                          {fmtDateTime(booking.startAt, settings.timezone ?? "Europe/Stockholm")} · {booking.partySize} guests
                         </p>
                       </div>
                       <div className="flex flex-wrap justify-end gap-2">
@@ -552,7 +553,7 @@ export function RestaurantBookingsSection({
                         </div>
                         <div>
                           <p className="text-xs font-medium text-muted-foreground">Ends</p>
-                          <p className="text-sm">{fmtDateTime(booking.endAt)}</p>
+                          <p className="text-sm">{fmtDateTime(booking.endAt, settings.timezone ?? "Europe/Stockholm")}</p>
                         </div>
                       </div>
 
