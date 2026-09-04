@@ -6,6 +6,7 @@ Always act as the **Manager Agent**. Delegate work to other agents and remain av
 ## Module documentation
 
 Restaurant module (section types, gating, filer, vad som inte ska skapas): `modules/restaurant/README.md`
+Restaurant booking `modules\restaurant-booking\README.md`
 
 
 Use components from:

@@ -2,10 +2,17 @@ import "server-only";
 import { getPrisma } from "@/lib/prisma";
 import { isModuleEnabledForBusiness } from "@/lib/modules";
 import { isDemoMode } from "@/lib/config";
+import {
+  hasBusinessFeatureAccess,
+  CATERING_FEATURE_KEY,
+} from "@/lib/feature-access";
 import type { Section } from "@/components/sections/types";
 import { mapPublishedSections, pickPublicBusinessId } from "./utils";
 import { getPublicGoogleReviews } from "./google-reviews/queries-public";
-import { isRestaurantSectionType } from "@/modules/restaurant/section-types";
+import {
+  isRestaurantSectionType,
+  isCateringSectionType,
+} from "@/modules/restaurant/section-types";
 
 /**
  * PUBLIC, sessionless read layer for the Website content module.
@@ -86,13 +93,22 @@ export async function getPublishedPageSections(
   });
   if (!page) return null;
 
-  // When the RESTAURANT module is disabled, strip restaurant-specific section
-  // types from the public render. Generic WEBSITE sections still render;
-  // restaurant data stays in the DB untouched.
-  const restaurantEnabled = await isModuleEnabledForBusiness(businessId, "RESTAURANT");
-  const visibleSections = restaurantEnabled
-    ? page.sections
-    : page.sections.filter((s) => !isRestaurantSectionType(s.type));
+  // Capability filtering mirrors the admin write guards. Restaurant content is
+  // hidden without RESTAURANT; catering content additionally requires CATERING.
+  const restaurantEnabled = await isModuleEnabledForBusiness(
+    businessId,
+    "RESTAURANT",
+  );
+  const cateringEnabled =
+    restaurantEnabled &&
+    (await hasBusinessFeatureAccess(businessId, CATERING_FEATURE_KEY));
+
+  const visibleSections = page.sections.filter((section) => {
+    if (!isRestaurantSectionType(section.type)) return true;
+    if (!restaurantEnabled) return false;
+    if (isCateringSectionType(section.type) && !cateringEnabled) return false;
+    return true;
+  });
 
   const sections = mapPublishedSections(visibleSections);
   const enriched = await injectGoogleReviews(businessId, sections);

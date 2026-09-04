@@ -5,17 +5,38 @@ import { requireSuperAdmin } from "./auth";
 import { getPrisma } from "./prisma";
 import { writeAuditLog } from "./audit";
 import { isDemoMode } from "./config";
-import { KNOWN_FEATURE_KEYS, CATERING_FEATURE_KEY } from "./feature-access";
+import {
+  KNOWN_FEATURE_KEYS,
+  CATERING_FEATURE_KEY,
+  RENTAL_BOOKING_FEATURE_KEY,
+  RESTAURANT_BOOKING_FEATURE_KEY,
+} from "./feature-access";
 import type { ProjectType } from "@/app/generated/prisma/enums";
 
 /**
- * Toggle an optional module (WEBSITE / RENTAL / BOOKING / CRM) for a business.
- * SUPER_ADMIN only. Enabled = an ACTIVE Project row of that type exists;
- * disabling sets the row(s) to DISABLED and NEVER deletes. Media is core and not
- * toggleable.
+ * Toggle a customer-facing module. BOOKING is intentionally excluded because
+ * it is the shared technical engine behind booking products, not a sellable
+ * product by itself.
  */
+const TOGGLEABLE = new Set<ProjectType>([
+  "WEBSITE",
+  "RENTAL",
+  "CRM",
+  "RESTAURANT",
+]);
 
-const TOGGLEABLE = new Set<ProjectType>(["WEBSITE", "RENTAL", "BOOKING", "CRM", "RESTAURANT"]);
+async function ensureModuleActive(businessId: string, type: ProjectType) {
+  const prisma = getPrisma();
+  const res = await prisma.project.updateMany({
+    where: { businessId, type },
+    data: { status: "ACTIVE" },
+  });
+  if (res.count === 0) {
+    await prisma.project.create({
+      data: { businessId, name: type, type, status: "ACTIVE" },
+    });
+  }
+}
 
 export async function setModuleEnabled(formData: FormData) {
   const user = await requireSuperAdmin();
@@ -23,33 +44,35 @@ export async function setModuleEnabled(formData: FormData) {
   const businessId = String(formData.get("businessId") ?? "").trim();
   const type = String(formData.get("type") ?? "").trim() as ProjectType;
   const enabled = String(formData.get("enabled") ?? "") === "true";
-
-  // Whitelist: never allow toggling Media (core) or any non-module type.
   if (!businessId || !TOGGLEABLE.has(type)) return;
+  if (isDemoMode()) return;
 
-  if (isDemoMode()) return; // no-op in demo
-
-  // businessId comes from the form ON PURPOSE: requireSuperAdmin grants
-  // platform-level access, so a SUPER_ADMIN may legitimately target ANY business.
   const prisma = getPrisma();
-
   if (enabled) {
-    // No unique (businessId,type) constraint exists, so flip existing rows ACTIVE
-    // and only create one when none exist.
-    const res = await prisma.project.updateMany({
-      where: { businessId, type },
-      data: { status: "ACTIVE" },
-    });
-    if (res.count === 0) {
-      await prisma.project.create({
-        data: { businessId, name: type, type, status: "ACTIVE" },
-      });
-    }
+    await ensureModuleActive(businessId, type);
   } else {
     await prisma.project.updateMany({
       where: { businessId, type },
       data: { status: "DISABLED" },
     });
+
+    // A product entitlement cannot remain enabled after its parent capability
+    // has been explicitly disabled.
+    if (type === "RENTAL") {
+      await prisma.businessFeatureAccess.updateMany({
+        where: { businessId, key: RENTAL_BOOKING_FEATURE_KEY },
+        data: { enabled: false },
+      });
+    }
+    if (type === "RESTAURANT") {
+      await prisma.businessFeatureAccess.updateMany({
+        where: {
+          businessId,
+          key: { in: [CATERING_FEATURE_KEY, RESTAURANT_BOOKING_FEATURE_KEY] },
+        },
+        data: { enabled: false },
+      });
+    }
   }
 
   await writeAuditLog({
@@ -62,16 +85,10 @@ export async function setModuleEnabled(formData: FormData) {
   });
 
   revalidatePath("/admin/super/modules");
+  revalidatePath("/admin");
 }
 
-/**
- * Grant or revoke a paid Website ADD-ON (e.g. Google Reviews) for a business.
- * SUPER_ADMIN only. This is NOT a module toggle — it upserts a
- * BusinessFeatureAccess row keyed by (businessId, key); it never touches Project
- * rows or the ProjectType enum. The `key` is whitelisted so a client can never
- * grant an arbitrary feature. businessId is passed by the SUPER_ADMIN on purpose
- * (platform-level access), never trusted from a customer.
- */
+/** Grant or revoke a paid product/add-on for a business. SUPER_ADMIN only. */
 export async function setBusinessFeatureAccess(input: {
   businessId: string;
   key: string;
@@ -82,13 +99,30 @@ export async function setBusinessFeatureAccess(input: {
   const businessId = input.businessId.trim();
   const key = input.key.trim();
   const enabled = Boolean(input.enabled);
-
-  // Whitelist: only known add-on keys can ever be granted.
   if (!businessId || !KNOWN_FEATURE_KEYS.has(key)) return;
+  if (isDemoMode()) return;
 
-  if (isDemoMode()) return; // no-op in demo
+  const prisma = getPrisma();
 
-  await getPrisma().businessFeatureAccess.upsert({
+  if (enabled && key === RENTAL_BOOKING_FEATURE_KEY) {
+    const rental = await prisma.project.findFirst({
+      where: { businessId, type: "RENTAL", status: "ACTIVE" },
+      select: { id: true },
+    });
+    if (!rental) return;
+    await ensureModuleActive(businessId, "BOOKING");
+  }
+
+  if (enabled && key === RESTAURANT_BOOKING_FEATURE_KEY) {
+    const restaurant = await prisma.project.findFirst({
+      where: { businessId, type: "RESTAURANT", status: "ACTIVE" },
+      select: { id: true },
+    });
+    if (!restaurant) return;
+    await ensureModuleActive(businessId, "BOOKING");
+  }
+
+  await prisma.businessFeatureAccess.upsert({
     where: { businessId_key: { businessId, key } },
     create: { businessId, key, enabled },
     update: { enabled },
@@ -103,10 +137,7 @@ export async function setBusinessFeatureAccess(input: {
     metadata: { key },
   });
 
-  // When CATERING is enabled, seed a default cateringMenus section if none
-  // exists so the admin sees it immediately without clicking "Add menu".
   if (enabled && key === CATERING_FEATURE_KEY) {
-    const prisma = getPrisma();
     const page = await prisma.websitePage.findFirst({
       where: { businessId },
       select: { id: true },
@@ -125,11 +156,8 @@ export async function setBusinessFeatureAccess(input: {
           select: { sortOrder: true },
         });
         const maxOrder =
-          orders.length > 0
-            ? Math.max(...orders.map((o) => o.sortOrder))
-            : -1;
+          orders.length > 0 ? Math.max(...orders.map((o) => o.sortOrder)) : -1;
 
-        // Platform-level access: SUPER_ADMIN seeds default content on behalf of the business.
         await prisma.websiteSection.create({
           data: {
             businessId,
