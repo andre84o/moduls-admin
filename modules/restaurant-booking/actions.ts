@@ -215,11 +215,13 @@ export async function setRestaurantBookingTables(input: { bookingId: string; tab
       const booking = await tx.booking.findFirst({ where: { id: bookingId, businessId: access.businessId }, select: { id: true, startAt: true, endAt: true, status: true } });
       if (!booking) throw new Error("BOOKING_NOT_FOUND");
 
+      const inactive = ["DECLINED", "CANCELLED", "EXPIRED", "REFUNDED"].includes(booking.status);
       if (tableIds.length === 0) {
+        if (!inactive) throw new Error("ACTIVE_BOOKING_REQUIRES_TABLE");
         await tx.bookingTable.deleteMany({ where: { businessId: access.businessId, restaurantBookingId: detail.id } });
         return;
       }
-      if (["DECLINED", "CANCELLED", "EXPIRED", "REFUNDED"].includes(booking.status)) throw new Error("BOOKING_INACTIVE");
+      if (inactive) throw new Error("BOOKING_INACTIVE");
 
       const settings = await getSettingsForBusiness(tx, access.businessId);
       if (tableIds.length > 1 && !settings.allowTableCombinations) throw new Error("COMBINATIONS_DISABLED");
@@ -259,7 +261,7 @@ export async function setRestaurantBookingTables(input: { bookingId: string; tab
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034") return { error: "Booking changed concurrently. Please try again." };
     if (error instanceof Error) {
-      const messages: Record<string, string> = { BOOKING_NOT_FOUND: "Restaurant booking not found.", BOOKING_INACTIVE: "Tables cannot be assigned to an inactive booking.", COMBINATIONS_DISABLED: "Table combinations are disabled.", TABLE_NOT_FOUND: "One or more tables were not found, are inactive, or belong to an inactive zone.", CAPACITY_MISMATCH: "Selected table capacity does not fit the party size.", INVALID_COMBINATION: "Selected tables are not in the same combination group.", TABLE_CONFLICT: "One or more tables are already booked for that time." };
+      const messages: Record<string, string> = { BOOKING_NOT_FOUND: "Restaurant booking not found.", BOOKING_INACTIVE: "Tables cannot be assigned to an inactive booking.", ACTIVE_BOOKING_REQUIRES_TABLE: "Active restaurant bookings must have at least one table. Cancel or reschedule instead.", COMBINATIONS_DISABLED: "Table combinations are disabled.", TABLE_NOT_FOUND: "One or more tables were not found, are inactive, or belong to an inactive zone.", CAPACITY_MISMATCH: "Selected table capacity does not fit the party size.", INVALID_COMBINATION: "Selected tables are not in the same combination group.", TABLE_CONFLICT: "One or more tables are already booked for that time." };
       if (messages[error.message]) return { error: messages[error.message] };
     }
     throw error;
