@@ -67,41 +67,46 @@ async function resolvePublicBusinessId(): Promise<string | null> {
 export async function getPublishedPageSections(
   key: string,
 ): Promise<Section[] | null> {
-  // No real database in demo mode — let the caller use the config fallback.
   if (isDemoMode()) return null;
 
-  // Resolve the public tenant FIRST (server-side), then scope the page query by
-  // it. We never trust a businessId taken from a page matched by key alone.
   const businessId = await resolvePublicBusinessId();
   if (!businessId) return null;
 
-  // WEBSITE module must be enabled for the resolved business.
   if (!(await isModuleEnabledForBusiness(businessId, "WEBSITE"))) return null;
 
   const page = await getPrisma().websitePage.findFirst({
-    // Always scoped by businessId — key is unique per business, so this can only
-    // ever return THIS tenant's page, never another business's same-key page.
     where: { businessId, key, status: "PUBLISHED" },
     select: {
       sections: {
         where: { isVisible: true },
         orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
-        // Public render: published content only, never draftContent.
         select: { type: true, publishedContent: true },
       },
     },
   });
   if (!page) return null;
 
-  // Capability filtering mirrors the admin write guards. Restaurant content is
-  // hidden without RESTAURANT; catering content additionally requires CATERING.
-  const restaurantEnabled = await isModuleEnabledForBusiness(
-    businessId,
-    "RESTAURANT",
+  // Only load Restaurant/Catering capability state when the page actually has
+  // Restaurant-owned sections. Ordinary website pages should not pay for an
+  // unrelated feature-access query.
+  const hasRestaurantSections = page.sections.some((section) =>
+    isRestaurantSectionType(section.type),
   );
-  const cateringEnabled =
-    restaurantEnabled &&
-    (await hasBusinessFeatureAccess(businessId, CATERING_FEATURE_KEY));
+
+  let restaurantEnabled = false;
+  let cateringEnabled = false;
+  if (hasRestaurantSections) {
+    restaurantEnabled = await isModuleEnabledForBusiness(businessId, "RESTAURANT");
+    if (
+      restaurantEnabled &&
+      page.sections.some((section) => isCateringSectionType(section.type))
+    ) {
+      cateringEnabled = await hasBusinessFeatureAccess(
+        businessId,
+        CATERING_FEATURE_KEY,
+      );
+    }
+  }
 
   const visibleSections = page.sections.filter((section) => {
     if (!isRestaurantSectionType(section.type)) return true;
@@ -115,14 +120,6 @@ export async function getPublishedPageSections(
   return enriched.length > 0 ? enriched : null;
 }
 
-/**
- * Inject cached Google reviews into any `googleReviews` sections, scoped by the
- * already server-resolved businessId. Editorial content (from publishedContent)
- * is preserved; only the review data (reviews + place aggregates) is merged in
- * from the cache. No-op — and no extra query — when the page has no googleReviews
- * section. This reads ONLY the cache (never the Google API / API key): see
- * ./google-reviews/queries-public.
- */
 async function injectGoogleReviews(
   businessId: string,
   sections: Section[],
@@ -137,17 +134,10 @@ async function injectGoogleReviews(
   );
 }
 
-/** Published home sections, or null when the config fallback should be used. */
 export function getPublishedHomeSections(): Promise<Section[] | null> {
   return getPublishedPageSections("home");
 }
 
-/**
- * Inject Google Reviews into any sections that contain a `googleReviews` slot,
- * using the server-resolved public businessId. Safe to call on config-fallback
- * sections — returns the sections unchanged when in demo mode, no business can
- * be resolved, or the section list has no `googleReviews` entry.
- */
 export async function withPublicGoogleReviews(
   sections: Section[],
 ): Promise<Section[]> {

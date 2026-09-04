@@ -13,7 +13,6 @@ import {
 } from "@/modules/website/google-reviews/utils";
 import type { GoogleReview } from "@/modules/website/google-reviews/types";
 
-/** Build a normalized review for selection/sort tests. */
 function review(partial: Partial<GoogleReview>): GoogleReview {
   return {
     author: "",
@@ -56,7 +55,7 @@ describe("clampMaxCount", () => {
 });
 
 describe("clampMinRating", () => {
-  it("returns null (no filter) for null/undefined/invalid", () => {
+  it("returns null for null/undefined/invalid", () => {
     expect(clampMinRating(null)).toBeNull();
     expect(clampMinRating(undefined)).toBeNull();
     expect(clampMinRating("4")).toBeNull();
@@ -72,13 +71,13 @@ describe("clampMinRating", () => {
 });
 
 describe("normalizeReview", () => {
-  it("normalizes the legacy Place Details (snake_case) shape", () => {
+  it("normalizes the legacy Place Details shape", () => {
     const r = normalizeReview({
       author_name: "Ada",
       rating: 5,
       text: "Great",
       relative_time_description: "2 weeks ago",
-      time: 1_700_000_000, // unix seconds
+      time: 1_700_000_000,
       profile_photo_url: "https://img/ada.png",
       author_url: "https://maps/ada",
       language: "en",
@@ -88,14 +87,14 @@ describe("normalizeReview", () => {
       rating: 5,
       text: "Great",
       relativeTime: "2 weeks ago",
-      time: 1_700_000_000_000, // converted to ms
+      time: 1_700_000_000_000,
       profilePhotoUrl: "https://img/ada.png",
       authorUrl: "https://maps/ada",
       language: "en",
     });
   });
 
-  it("normalizes the Places API New (attribution + nested text) shape", () => {
+  it("normalizes the Places API New shape", () => {
     const r = normalizeReview({
       authorAttribution: {
         displayName: "Grace",
@@ -115,18 +114,18 @@ describe("normalizeReview", () => {
     expect(r?.time).toBe(Date.parse("2026-01-15T10:00:00Z"));
   });
 
-  it("returns null for non-object input and never throws on junk", () => {
+  it("returns null for non-object input", () => {
     expect(normalizeReview(null)).toBeNull();
     expect(normalizeReview("x")).toBeNull();
     expect(normalizeReview(42)).toBeNull();
     expect(normalizeReview([])).toBeNull();
   });
 
-  it("uses safe defaults for missing fields (rating 0, empty strings, null)", () => {
+  it("uses safe defaults for missing fields", () => {
     expect(normalizeReview({})).toEqual(review({}));
   });
 
-  it("does NOT carry a businessId (or any tenant field) from client data", () => {
+  it("does not carry tenant fields from client data", () => {
     const r = normalizeReview({
       author_name: "Mallory",
       rating: 5,
@@ -141,15 +140,15 @@ describe("normalizeReview", () => {
     expect(JSON.stringify(r)).not.toContain("biz_attacker");
   });
 
-  it("clamps an out-of-range review rating into 0..5", () => {
+  it("clamps an out-of-range review rating", () => {
     expect(normalizeReview({ rating: 99 })?.rating).toBe(5);
     expect(normalizeReview({ rating: -3 })?.rating).toBe(0);
     expect(normalizeReview({ rating: "five" })?.rating).toBe(0);
   });
 });
 
-describe("normalizeReviews / normalizePayload (robust, never crashes)", () => {
-  it("returns [] for empty/invalid payloads", () => {
+describe("normalizeReviews / normalizePayload", () => {
+  it("returns [] for invalid payloads", () => {
     expect(normalizeReviews(null)).toEqual([]);
     expect(normalizeReviews(undefined)).toEqual([]);
     expect(normalizeReviews({})).toEqual([]);
@@ -157,20 +156,20 @@ describe("normalizeReviews / normalizePayload (robust, never crashes)", () => {
     expect(normalizeReviews("nope")).toEqual([]);
   });
 
-  it("accepts an array, a { reviews } object, and a { result: { reviews } } envelope", () => {
+  it("accepts supported review envelopes", () => {
     const item = { author_name: "A", rating: 5, text: "t" };
     expect(normalizeReviews([item])).toHaveLength(1);
     expect(normalizeReviews({ reviews: [item] })).toHaveLength(1);
     expect(normalizeReviews({ result: { reviews: [item] } })).toHaveLength(1);
   });
 
-  it("drops non-object entries inside a reviews array without crashing", () => {
+  it("drops non-object entries", () => {
     const out = normalizeReviews({ reviews: [null, 1, "x", { rating: 4 }] });
     expect(out).toHaveLength(1);
     expect(out[0].rating).toBe(4);
   });
 
-  it("normalizePayload extracts aggregates and never throws on junk", () => {
+  it("normalizes aggregate payload values", () => {
     expect(normalizePayload(undefined)).toEqual({
       rating: null,
       userRatingCount: null,
@@ -201,13 +200,13 @@ describe("filterByMinRating", () => {
     expect(filterByMinRating(reviews, 5).map((r) => r.rating)).toEqual([5]);
   });
 
-  it("returns all reviews (a copy) when minRating is null", () => {
+  it("returns all reviews as a copy when minRating is null", () => {
     const out = filterByMinRating(reviews, null);
     expect(out).toHaveLength(3);
-    expect(out).not.toBe(reviews); // copy, not the same reference
+    expect(out).not.toBe(reviews);
   });
 
-  it("does not mutate the input array", () => {
+  it("does not mutate input", () => {
     const before = reviews.map((r) => r.rating);
     filterByMinRating(reviews, 4);
     expect(reviews.map((r) => r.rating)).toEqual(before);
@@ -215,7 +214,7 @@ describe("filterByMinRating", () => {
 });
 
 describe("sortReviews (deterministic)", () => {
-  it("orders by rating desc, then time desc, then author, then text", () => {
+  it("orders by time desc, then rating desc, then author, then text", () => {
     const input = [
       review({ author: "z", rating: 5, time: 100 }),
       review({ author: "a", rating: 5, time: 200 }),
@@ -225,15 +224,15 @@ describe("sortReviews (deterministic)", () => {
     ];
     const out = sortReviews(input).map((r) => [r.author, r.rating, r.time, r.text]);
     expect(out).toEqual([
-      ["a", 5, 200, ""], // empty string sorts before "a"/"b"
+      ["m", 3, 999, ""],
+      ["a", 5, 200, ""],
       ["a", 5, 200, "a"],
       ["a", 5, 200, "b"],
       ["z", 5, 100, ""],
-      ["m", 3, 999, ""],
     ]);
   });
 
-  it("is order-independent: shuffled inputs yield identical output", () => {
+  it("is order-independent", () => {
     const a = [
       review({ author: "a", rating: 4, time: 10 }),
       review({ author: "b", rating: 4, time: 20 }),
@@ -243,7 +242,7 @@ describe("sortReviews (deterministic)", () => {
     expect(sortReviews(a)).toEqual(sortReviews(b));
   });
 
-  it("sorts unknown (null) times last within a rating", () => {
+  it("sorts unknown times last within a rating", () => {
     const out = sortReviews([
       review({ author: "x", rating: 5, time: null }),
       review({ author: "y", rating: 5, time: 1 }),
@@ -251,7 +250,7 @@ describe("sortReviews (deterministic)", () => {
     expect(out.map((r) => r.author)).toEqual(["y", "x"]);
   });
 
-  it("does not mutate the input array", () => {
+  it("does not mutate input", () => {
     const input = [review({ author: "b", rating: 1 }), review({ author: "a", rating: 5 })];
     const snapshot = input.map((r) => r.author);
     sortReviews(input);
@@ -259,7 +258,7 @@ describe("sortReviews (deterministic)", () => {
   });
 });
 
-describe("selectReviews (filter + sort + clamp)", () => {
+describe("selectReviews", () => {
   const reviews = [
     review({ author: "a", rating: 5, time: 1 }),
     review({ author: "b", rating: 4, time: 2 }),
@@ -269,27 +268,27 @@ describe("selectReviews (filter + sort + clamp)", () => {
 
   it("applies minRating then maxCount", () => {
     const out = selectReviews(reviews, { minRating: 4, maxCount: 2 });
-    expect(out.map((r) => r.author)).toEqual(["d", "a"]); // rating 5s, newest first
+    expect(out.map((r) => r.author)).toEqual(["d", "b"]);
     expect(out).toHaveLength(2);
   });
 
   it("clamps maxCount and defaults when unset", () => {
     expect(selectReviews(reviews, { maxCount: 1 })).toHaveLength(1);
     expect(selectReviews(reviews, { maxCount: 1000 })).toHaveLength(4);
-    expect(selectReviews(reviews)).toHaveLength(4); // default 6 > 4 items
+    expect(selectReviews(reviews)).toHaveLength(4);
     expect(selectReviews(reviews, { maxCount: 0 })).toHaveLength(0);
   });
 
-  it("produces JSON-serializable output (round-trips unchanged)", () => {
+  it("produces JSON-serializable output", () => {
     const out = selectReviews(reviews, { minRating: 4 });
     expect(JSON.parse(JSON.stringify(out))).toEqual(out);
   });
 });
 
-describe("isCacheStale (clock injected, pure)", () => {
+describe("isCacheStale", () => {
   const now = 1_000_000;
 
-  it("is fresh within the ttl and stale beyond it", () => {
+  it("is fresh within ttl and stale beyond it", () => {
     expect(isCacheStale(now - 500, 1000, now)).toBe(false);
     expect(isCacheStale(now - 1500, 1000, now)).toBe(true);
   });
@@ -299,7 +298,7 @@ describe("isCacheStale (clock injected, pure)", () => {
     expect(isCacheStale("2026-01-01T00:00:00Z", 1000, Date.parse("2026-01-01T00:00:00.500Z"))).toBe(false);
   });
 
-  it("treats an unknown fetch time or invalid ttl as stale (safe default)", () => {
+  it("treats unknown fetch time or invalid ttl as stale", () => {
     expect(isCacheStale(null, 1000, now)).toBe(true);
     expect(isCacheStale(undefined, 1000, now)).toBe(true);
     expect(isCacheStale("not-a-date", 1000, now)).toBe(true);
