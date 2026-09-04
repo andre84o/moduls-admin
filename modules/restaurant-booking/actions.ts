@@ -200,46 +200,6 @@ export async function updateRestaurantTable(input: { id: string; name?: string; 
   return {};
 }
 
-export async function createRestaurantBooking(input: { guestName: string; guestEmail?: string | null; guestPhone?: string | null; partySize: number; startAt: string; notes?: string | null }): Promise<{ id?: string; error?: string }> {
-  const access = await requireRestaurantBooking({ allowedRoles: [...WRITER_ROLES] });
-  if (access.isDemo) return {};
-  const guestName = input.guestName.trim();
-  if (!guestName || guestName.length > 120) return { error: "Guest name is required." };
-
-  const prisma = getPrisma();
-  const settings = await getSettingsForBusiness(prisma, access.businessId);
-  if (!wholeNumber(input.partySize, 1, settings.maxPartySize)) return { error: `Party size must be between 1 and ${settings.maxPartySize}.` };
-  const startAt = new Date(input.startAt);
-  if (Number.isNaN(startAt.getTime())) return { error: "Invalid booking time." };
-  const endAt = addMinutes(startAt, settings.defaultDurationMin);
-
-  const bookingId = await prisma.$transaction(async (tx) => {
-    const booking = await tx.booking.create({ data: { businessId: access.businessId, guestName, guestEmail: cleanText(input.guestEmail, 200), startAt, endAt, status: "CONFIRMED", notes: cleanText(input.notes, 2000) }, select: { id: true } });
-    await tx.restaurantBookingDetail.create({ data: { businessId: access.businessId, bookingId: booking.id, guestPhone: cleanText(input.guestPhone, 40), partySize: input.partySize } });
-    return booking.id;
-  });
-
-  await writeAuditLog({ businessId: access.businessId, userId: access.userId, action: "restaurant_booking.booking_created", entityType: "Booking", entityId: bookingId, metadata: { partySize: input.partySize } });
-  revalidatePath("/admin");
-  return { id: bookingId };
-}
-
-export async function setRestaurantBookingStatus(bookingId: string, status: "PENDING" | "CONFIRMED" | "DECLINED" | "CANCELLED"): Promise<{ error?: string }> {
-  const access = await requireRestaurantBooking({ allowedRoles: [...WRITER_ROLES] });
-  if (access.isDemo) return {};
-  const id = bookingId.trim();
-  if (!id) return { error: "Missing booking id." };
-
-  const detail = await getPrisma().restaurantBookingDetail.findFirst({ where: { bookingId: id, businessId: access.businessId }, select: { id: true } });
-  if (!detail) return { error: "Restaurant booking not found." };
-  const result = await getPrisma().booking.updateMany({ where: { id, businessId: access.businessId }, data: { status } });
-  if (result.count !== 1) return { error: "Restaurant booking not found." };
-
-  await writeAuditLog({ businessId: access.businessId, userId: access.userId, action: "restaurant_booking.status_changed", entityType: "Booking", entityId: id, metadata: { status } });
-  revalidatePath("/admin");
-  return {};
-}
-
 export async function setRestaurantBookingTables(input: { bookingId: string; tableIds: string[] }): Promise<{ error?: string }> {
   const access = await requireRestaurantBooking({ allowedRoles: [...WRITER_ROLES] });
   if (access.isDemo) return {};
@@ -263,7 +223,18 @@ export async function setRestaurantBookingTables(input: { bookingId: string; tab
 
       const settings = await getSettingsForBusiness(tx, access.businessId);
       if (tableIds.length > 1 && !settings.allowTableCombinations) throw new Error("COMBINATIONS_DISABLED");
-      const tables = await tx.restaurantTable.findMany({ where: { businessId: access.businessId, id: { in: tableIds }, active: true }, select: { id: true, minSeats: true, maxSeats: true, combinationGroup: true } });
+      const tables = await tx.restaurantTable.findMany({
+        where: {
+          businessId: access.businessId,
+          id: { in: tableIds },
+          active: true,
+          OR: [
+            { zoneId: null },
+            { zone: { is: { active: true } } },
+          ],
+        },
+        select: { id: true, minSeats: true, maxSeats: true, combinationGroup: true },
+      });
       if (tables.length !== tableIds.length) throw new Error("TABLE_NOT_FOUND");
 
       if (tables.length === 1) {
@@ -288,7 +259,7 @@ export async function setRestaurantBookingTables(input: { bookingId: string; tab
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034") return { error: "Booking changed concurrently. Please try again." };
     if (error instanceof Error) {
-      const messages: Record<string, string> = { BOOKING_NOT_FOUND: "Restaurant booking not found.", BOOKING_INACTIVE: "Tables cannot be assigned to an inactive booking.", COMBINATIONS_DISABLED: "Table combinations are disabled.", TABLE_NOT_FOUND: "One or more tables were not found or are inactive.", CAPACITY_MISMATCH: "Selected table capacity does not fit the party size.", INVALID_COMBINATION: "Selected tables are not in the same combination group.", TABLE_CONFLICT: "One or more tables are already booked for that time." };
+      const messages: Record<string, string> = { BOOKING_NOT_FOUND: "Restaurant booking not found.", BOOKING_INACTIVE: "Tables cannot be assigned to an inactive booking.", COMBINATIONS_DISABLED: "Table combinations are disabled.", TABLE_NOT_FOUND: "One or more tables were not found, are inactive, or belong to an inactive zone.", CAPACITY_MISMATCH: "Selected table capacity does not fit the party size.", INVALID_COMBINATION: "Selected tables are not in the same combination group.", TABLE_CONFLICT: "One or more tables are already booked for that time." };
       if (messages[error.message]) return { error: messages[error.message] };
     }
     throw error;
