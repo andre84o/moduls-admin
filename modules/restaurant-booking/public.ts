@@ -10,6 +10,7 @@ import {
   allocateRestaurantBookingSlot,
   restaurantSlotErrorMessage,
 } from "./booking-slot";
+import { notifyRestaurantBookingEvent } from "./notifications";
 
 function cleanText(value: string | null | undefined, max: number) {
   const text = value?.trim() ?? "";
@@ -109,6 +110,11 @@ export async function createPublicRestaurantBooking(input: {
         entityType: "Booking",
         entityId: created.bookingId,
         metadata: { partySize: input.partySize, status: created.status },
+      });
+      await notifyRestaurantBookingEvent({
+        businessId,
+        bookingId: created.bookingId,
+        event: "CREATED",
       });
       return { ok: true, ...created };
     } catch (error) {

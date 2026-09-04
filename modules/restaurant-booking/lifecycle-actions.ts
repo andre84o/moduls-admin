@@ -10,6 +10,7 @@ import {
   allocateRestaurantBookingSlot,
   restaurantSlotErrorMessage,
 } from "./booking-slot";
+import { notifyRestaurantBookingEvent } from "./notifications";
 
 const WRITER_ROLES = ["OWNER", "ADMIN"] as const;
 
@@ -101,6 +102,11 @@ export async function createManagedRestaurantBooking(input: {
       entityId: created,
       metadata: { partySize: input.partySize, allocator: "canonical" },
     });
+    await notifyRestaurantBookingEvent({
+      businessId: access.businessId,
+      bookingId: created,
+      event: "CREATED",
+    });
     revalidatePath("/admin");
     return { id: created };
   } catch (error) {
@@ -171,6 +177,11 @@ export async function rescheduleRestaurantBooking(input: {
       entityId: bookingId,
       metadata: { startAt: startAt.toISOString() },
     });
+    await notifyRestaurantBookingEvent({
+      businessId: access.businessId,
+      bookingId,
+      event: "RESCHEDULED",
+    });
     revalidatePath("/admin");
     return {};
   } catch (error) {
@@ -189,6 +200,7 @@ export async function setManagedRestaurantBookingStatus(
 
   const prisma = getPrisma();
   try {
+    let event: "CONFIRMED" | "DECLINED" | "CANCELLED" | "REACTIVATED" | null = null;
     await prisma.$transaction(
       async (tx) => {
         const detail = await tx.restaurantBookingDetail.findFirst({
@@ -227,6 +239,13 @@ export async function setManagedRestaurantBookingStatus(
               tableId,
             })),
           });
+          event = "REACTIVATED";
+        } else if (status === "CONFIRMED" && booking.status !== "CONFIRMED") {
+          event = "CONFIRMED";
+        } else if (status === "DECLINED" && booking.status !== "DECLINED") {
+          event = "DECLINED";
+        } else if (status === "CANCELLED" && booking.status !== "CANCELLED") {
+          event = "CANCELLED";
         }
 
         await tx.booking.updateMany({
@@ -245,6 +264,13 @@ export async function setManagedRestaurantBookingStatus(
       entityId: id,
       metadata: { status, capacityRechecked: true },
     });
+    if (event) {
+      await notifyRestaurantBookingEvent({
+        businessId: access.businessId,
+        bookingId: id,
+        event,
+      });
+    }
     revalidatePath("/admin");
     return {};
   } catch (error) {
