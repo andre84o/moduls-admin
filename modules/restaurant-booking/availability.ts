@@ -3,6 +3,7 @@ import "server-only";
 import { getPrisma } from "@/lib/prisma";
 import { isRestaurantBookingEnabledForBusiness } from "./guards";
 import { DEFAULT_RESTAURANT_BOOKING_SETTINGS, type RestaurantAvailabilityResult } from "./types";
+import { chooseRestaurantTables } from "./table-assignment";
 
 const ACTIVE_STATUSES = ["PENDING", "PAYMENT_PENDING", "CONFIRMED"] as const;
 
@@ -62,30 +63,6 @@ function weekdayForDateKey(dateKey: string) {
   return new Date(Date.UTC(year, month - 1, day, 12)).getUTCDay();
 }
 
-function tableCapacityAvailable(
-  tables: Array<{ id: string; minSeats: number; maxSeats: number; combinationGroup: string | null }>,
-  occupied: Set<string>,
-  partySize: number,
-  allowCombinations: boolean,
-) {
-  const free = tables.filter((table) => !occupied.has(table.id));
-  if (free.some((table) => partySize >= table.minSeats && partySize <= table.maxSeats)) return true;
-  if (!allowCombinations) return false;
-
-  const groups = new Map<string, typeof free>();
-  for (const table of free) {
-    if (!table.combinationGroup) continue;
-    const list = groups.get(table.combinationGroup) ?? [];
-    list.push(table);
-    groups.set(table.combinationGroup, list);
-  }
-  for (const group of groups.values()) {
-    if (group.length < 2) continue;
-    if (group.reduce((sum, table) => sum + table.maxSeats, 0) >= partySize) return true;
-  }
-  return false;
-}
-
 export async function getRestaurantAvailabilityForBusiness(input: {
   businessId: string;
   date: string;
@@ -140,7 +117,14 @@ export async function getRestaurantAvailabilityForBusiness(input: {
 
   const [tables, blocked, details] = await Promise.all([
     prisma.restaurantTable.findMany({
-      where: { businessId, active: true },
+      where: {
+        businessId,
+        active: true,
+        OR: [
+          { zoneId: null },
+          { zone: { is: { active: true } } },
+        ],
+      },
       select: { id: true, minSeats: true, maxSeats: true, combinationGroup: true },
     }),
     prisma.restaurantBlockedPeriod.findMany({
@@ -176,6 +160,7 @@ export async function getRestaurantAvailabilityForBusiness(input: {
     : [];
 
   const detailByBooking = new Map(details.map((detail) => [detail.bookingId, detail]));
+  const activeTableIds = new Set(tables.map((table) => table.id));
   const slots: RestaurantAvailabilityResult["slots"] = [];
 
   for (const period of periods) {
@@ -204,17 +189,24 @@ export async function getRestaurantAvailabilityForBusiness(input: {
             available = false;
             break;
           }
-          for (const link of detail.tables) occupied.add(link.tableId);
+          for (const link of detail.tables) {
+            if (!activeTableIds.has(link.tableId)) {
+              available = false;
+              break;
+            }
+            occupied.add(link.tableId);
+          }
+          if (!available) break;
         }
       }
 
       if (available) {
-        available = tableCapacityAvailable(
+        available = chooseRestaurantTables({
           tables,
           occupied,
-          input.partySize,
-          settings.allowTableCombinations,
-        );
+          partySize: input.partySize,
+          allowCombinations: settings.allowTableCombinations,
+        }) !== null;
       }
 
       slots.push({ startAt: startAt.toISOString(), endAt: endAt.toISOString(), available });
