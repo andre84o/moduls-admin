@@ -1,0 +1,98 @@
+// Restaurant Booking domain models.
+// Core booking lifecycle stays in `Booking`; restaurant-specific data is a
+// one-to-one subtype keyed by bookingId so RENTAL booking fields stay untouched.
+
+model RestaurantBookingSettings {
+  id                     String                     @id @default(cuid())
+  businessId             String                     @unique
+  slotIntervalMin        Int                        @default(30)
+  defaultDurationMin     Int                        @default(120)
+  turnaroundMin          Int                        @default(0)
+  minLeadTimeMin         Int                        @default(60)
+  bookingHorizonDays     Int                        @default(60)
+  maxPartySize           Int                        @default(12)
+  confirmationMode       RestaurantConfirmationMode @default(REQUEST)
+  allowTableCombinations Boolean                    @default(true)
+  createdAt              DateTime                   @default(now())
+  updatedAt              DateTime                   @updatedAt
+
+  @@index([businessId])
+  @@map("restaurant_booking_settings")
+}
+
+model RestaurantZone {
+  id         String   @id @default(cuid())
+  businessId String
+  name       String
+  active     Boolean  @default(true)
+  sortOrder  Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  tables RestaurantTable[]
+
+  @@unique([businessId, name])
+  @@index([businessId])
+  @@map("restaurant_zones")
+}
+
+model RestaurantTable {
+  id               String   @id @default(cuid())
+  businessId       String
+  zoneId           String?
+  name             String
+  minSeats         Int      @default(1)
+  maxSeats         Int
+  combinationGroup String?
+  active           Boolean  @default(true)
+  sortOrder        Int      @default(0)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  zone         RestaurantZone? @relation(fields: [zoneId], references: [id], onDelete: SetNull)
+  bookingLinks BookingTable[]
+
+  @@unique([businessId, name])
+  @@index([businessId])
+  @@index([businessId, zoneId])
+  @@index([businessId, combinationGroup])
+  @@map("restaurant_tables")
+}
+
+model RestaurantBookingDetail {
+  id         String   @id @default(cuid())
+  businessId String
+  bookingId  String   @unique
+  guestPhone String?
+  partySize  Int
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  tables BookingTable[]
+
+  @@index([businessId])
+  @@index([businessId, bookingId])
+  @@map("restaurant_booking_details")
+}
+
+model BookingTable {
+  id                  String   @id @default(cuid())
+  businessId          String
+  restaurantBookingId String
+  tableId             String
+  createdAt           DateTime @default(now())
+
+  restaurantBooking RestaurantBookingDetail @relation(fields: [restaurantBookingId], references: [id], onDelete: Cascade)
+  table             RestaurantTable         @relation(fields: [tableId], references: [id], onDelete: Cascade)
+
+  @@unique([restaurantBookingId, tableId])
+  @@index([businessId])
+  @@index([businessId, restaurantBookingId])
+  @@index([businessId, tableId])
+  @@map("booking_tables")
+}
+
+enum RestaurantConfirmationMode {
+  AUTO_CONFIRM
+  REQUEST
+}
