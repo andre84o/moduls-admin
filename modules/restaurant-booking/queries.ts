@@ -144,6 +144,37 @@ export async function getRestaurantBookings() {
     },
   });
 
+  const guestActivityLogs = await prisma.auditLog.findMany({
+    where: {
+      businessId: access.businessId,
+      entityType: "Booking",
+      entityId: { in: bookings.map((booking) => booking.id) },
+      action: {
+        in: [
+          "restaurant_booking.guest_cancelled",
+          "restaurant_booking.guest_rescheduled",
+        ],
+      },
+    },
+    orderBy: { createdAt: "desc" },
+    select: { entityId: true, action: true, createdAt: true },
+  });
+
+  const guestActivityByBooking = new Map<
+    string,
+    { type: "CANCELLED" | "RESCHEDULED"; at: string }
+  >();
+  for (const log of guestActivityLogs) {
+    if (!log.entityId || guestActivityByBooking.has(log.entityId)) continue;
+    guestActivityByBooking.set(log.entityId, {
+      type:
+        log.action === "restaurant_booking.guest_cancelled"
+          ? "CANCELLED"
+          : "RESCHEDULED",
+      at: log.createdAt.toISOString(),
+    });
+  }
+
   const detailByBooking = new Map(details.map((detail) => [detail.bookingId, detail]));
   return bookings.map((booking) => {
     const detail = detailByBooking.get(booking.id)!;
@@ -151,6 +182,7 @@ export async function getRestaurantBookings() {
       ...booking,
       guestPhone: detail.guestPhone,
       partySize: detail.partySize,
+      guestActivity: guestActivityByBooking.get(booking.id) ?? null,
       tables: detail.tables
         .filter(
           (link) =>
