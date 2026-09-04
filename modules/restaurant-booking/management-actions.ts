@@ -15,6 +15,12 @@ import { notifyRestaurantBookingEvent } from "./notifications";
 import { DEFAULT_RESTAURANT_BOOKING_SETTINGS } from "./types";
 import { safeTimezone } from "./time";
 
+const MANAGEMENT_LINK_GRACE_MS = 24 * 60 * 60 * 1000;
+
+function isManagementLinkExpired(endAt: Date, now = new Date()) {
+  return now.getTime() >= endAt.getTime() + MANAGEMENT_LINK_GRACE_MS;
+}
+
 function isActiveStatus(status: string) {
   return RESTAURANT_CAPACITY_STATUSES.includes(
     status as (typeof RESTAURANT_CAPACITY_STATUSES)[number],
@@ -31,6 +37,7 @@ function managementError(error: unknown, fallback: string) {
   const messages: Record<string, string> = {
     BOOKING_NOT_FOUND: "This booking link is no longer valid.",
     BOOKING_INACTIVE: "This booking can no longer be changed.",
+    BOOKING_EXPIRED: "This booking link has expired.",
   };
   return messages[code] ?? fallback;
 }
@@ -70,6 +77,9 @@ export async function getRestaurantBookingManagement(token: string) {
   if (!booking || !business) {
     return { ok: false as const, error: "This booking link is invalid." };
   }
+  if (isManagementLinkExpired(booking.endAt)) {
+    return { ok: false as const, error: "This booking link has expired." };
+  }
 
   return {
     ok: true as const,
@@ -105,9 +115,15 @@ export async function getRestaurantBookingManagementAvailability(input: {
 
   const booking = await prisma.booking.findFirst({
     where: { id: detail.bookingId, businessId: detail.businessId },
-    select: { status: true },
+    select: { status: true, endAt: true },
   });
-  if (!booking || !isActiveStatus(booking.status)) {
+  if (!booking) {
+    return { ok: false as const, error: "This booking link is invalid." };
+  }
+  if (isManagementLinkExpired(booking.endAt)) {
+    return { ok: false as const, error: "This booking link has expired." };
+  }
+  if (!isActiveStatus(booking.status)) {
     return { ok: false as const, error: "This booking can no longer be changed." };
   }
 
@@ -137,9 +153,10 @@ export async function cancelRestaurantBookingByToken(token: string) {
 
         const booking = await tx.booking.findFirst({
           where: { id: detail.bookingId, businessId: detail.businessId },
-          select: { status: true },
+          select: { status: true, endAt: true },
         });
         if (!booking) throw new Error("BOOKING_NOT_FOUND");
+        if (isManagementLinkExpired(booking.endAt)) throw new Error("BOOKING_EXPIRED");
         if (booking.status === "CANCELLED") {
           return { ...detail, changed: false };
         }
@@ -205,9 +222,10 @@ export async function rescheduleRestaurantBookingByToken(input: {
 
           const booking = await tx.booking.findFirst({
             where: { id: detail.bookingId, businessId: detail.businessId },
-            select: { status: true },
+            select: { status: true, endAt: true },
           });
           if (!booking) throw new Error("BOOKING_NOT_FOUND");
+          if (isManagementLinkExpired(booking.endAt)) throw new Error("BOOKING_EXPIRED");
           if (!isActiveStatus(booking.status)) throw new Error("BOOKING_INACTIVE");
 
           const allocation = await allocateRestaurantBookingSlot(tx, {
