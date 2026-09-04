@@ -12,9 +12,11 @@ import {
   createRestaurantZone,
   saveRestaurantBookingSettings,
   setRestaurantBookingTables,
-  updateRestaurantTable,
-  updateRestaurantZone,
 } from "@/modules/restaurant-booking/actions";
+import {
+  updateRestaurantTableSafely,
+  updateRestaurantZoneSafely,
+} from "@/modules/restaurant-booking/configuration-actions";
 import {
   createManagedRestaurantBooking,
   rescheduleRestaurantBooking,
@@ -231,7 +233,7 @@ export function RestaurantBookingsSection({
         action={(formData) =>
           runAction(
             () =>
-              updateRestaurantTable({
+              updateRestaurantTableSafely({
                 id: table.id,
                 name: String(formData.get("name") ?? ""),
                 zoneId: String(formData.get("zoneId") ?? "") || null,
@@ -766,7 +768,7 @@ export function RestaurantBookingsSection({
                     action={(formData) =>
                       runAction(
                         () =>
-                          updateRestaurantZone({
+                          updateRestaurantZoneSafely({
                             id: zone.id,
                             name: String(formData.get("name") ?? ""),
                             active: formData.get("active") === "on",

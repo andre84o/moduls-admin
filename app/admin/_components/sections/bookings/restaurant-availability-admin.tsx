@@ -7,13 +7,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
-  createRestaurantBlockedPeriod,
-  createRestaurantServicePeriod,
-  deleteRestaurantBlockedPeriod,
-  deleteRestaurantServicePeriod,
-  previewRestaurantAvailability,
-  saveRestaurantBookingTimezone,
-} from "@/modules/restaurant-booking/schedule-actions";
+  createRestaurantBlockedPeriodSafely,
+  createRestaurantServicePeriodSafely,
+  deleteRestaurantBlockedPeriodSafely,
+  deleteRestaurantServicePeriodSafely,
+  previewRestaurantAvailabilitySafely,
+  saveRestaurantBookingTimezoneSafely,
+} from "@/modules/restaurant-booking/configuration-actions";
 import type {
   AdminRestaurantBlockedPeriod,
   AdminRestaurantServicePeriod,
@@ -86,7 +86,7 @@ export function RestaurantAvailabilityAdmin({
         <CardHeader><CardTitle>Timezone</CardTitle></CardHeader>
         <CardContent>
           <form
-            action={(formData) => run(() => saveRestaurantBookingTimezone(String(formData.get("timezone") ?? "")), "Timezone saved.")}
+            action={(formData) => run(() => saveRestaurantBookingTimezoneSafely(String(formData.get("timezone") ?? "")), "Timezone saved.")}
             className="flex flex-col gap-3 sm:flex-row sm:items-end"
           >
             <div className="flex-1">
@@ -104,7 +104,7 @@ export function RestaurantAvailabilityAdmin({
           <form
             action={(formData) =>
               run(
-                () => createRestaurantServicePeriod({
+                () => createRestaurantServicePeriodSafely({
                   weekday: Number(formData.get("weekday")),
                   startMinute: timeToMinute(String(formData.get("start") ?? "")),
                   endMinute: timeToMinute(String(formData.get("end") ?? "")),
@@ -138,7 +138,7 @@ export function RestaurantAvailabilityAdmin({
               {servicePeriods.map((period) => (
                 <div key={period.id} className="flex items-center justify-between rounded-md border px-3 py-2 text-sm">
                   <span>{WEEKDAYS[period.weekday]} · {minuteLabel(period.startMinute)}–{minuteLabel(period.endMinute)}</span>
-                  <Button type="button" size="sm" variant="ghost" disabled={isPending} onClick={() => run(() => deleteRestaurantServicePeriod(period.id), "Service period removed.")}>Remove</Button>
+                  <Button type="button" size="sm" variant="ghost" disabled={isPending} onClick={() => run(() => deleteRestaurantServicePeriodSafely(period.id), "Service period removed.")}>Remove</Button>
                 </div>
               ))}
             </div>
@@ -154,7 +154,7 @@ export function RestaurantAvailabilityAdmin({
               const start = new Date(String(formData.get("startAt") ?? ""));
               const end = new Date(String(formData.get("endAt") ?? ""));
               run(
-                () => createRestaurantBlockedPeriod({
+                () => createRestaurantBlockedPeriodSafely({
                   startAt: start.toISOString(),
                   endAt: end.toISOString(),
                   reason: String(formData.get("reason") ?? "") || null,
@@ -191,7 +191,7 @@ export function RestaurantAvailabilityAdmin({
                     {new Date(period.startAt).toLocaleString()} → {new Date(period.endAt).toLocaleString()}
                     {period.reason ? ` · ${period.reason}` : ""}
                   </span>
-                  <Button type="button" size="sm" variant="ghost" disabled={isPending} onClick={() => run(() => deleteRestaurantBlockedPeriod(period.id), "Blocked period removed.")}>Remove</Button>
+                  <Button type="button" size="sm" variant="ghost" disabled={isPending} onClick={() => run(() => deleteRestaurantBlockedPeriodSafely(period.id), "Blocked period removed.")}>Remove</Button>
                 </div>
               ))}
             </div>
@@ -206,7 +206,7 @@ export function RestaurantAvailabilityAdmin({
             action={(formData) => {
               setFeedback(null);
               startTransition(async () => {
-                const result = await previewRestaurantAvailability({
+                const result = await previewRestaurantAvailabilitySafely({
                   date: String(formData.get("date") ?? ""),
                   partySize: Number(formData.get("partySize")),
                 });
