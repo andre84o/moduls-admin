@@ -447,7 +447,7 @@ export function RestaurantBookingsSection({
             </CardContent>
           </Card>
 
-          <div className="space-y-4">
+          <div className="space-y-3">
             {bookings.length === 0 ? (
               <p className="py-8 text-center text-sm text-muted-foreground">No restaurant bookings yet.</p>
             ) : (
@@ -455,19 +455,25 @@ export function RestaurantBookingsSection({
                 const badge = statusBadge[booking.status];
                 const selected = selectedTables[booking.id] ?? [];
                 const inactive = !ACTIVE_STATUSES.has(booking.status);
+                const currentTable = booking.tables.length > 0
+                  ? booking.tables.map((table) => table.name).join(", ")
+                  : "No table";
                 return (
                   <Card key={booking.id}>
-                    <CardHeader className="flex-row items-start justify-between gap-4">
-                      <div>
-                        <CardTitle className="flex flex-wrap items-center gap-2">
+                    <CardHeader className="gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="min-w-0">
+                        <CardTitle className="flex flex-wrap items-center gap-2 text-base">
                           {booking.guestName}
                           <Badge variant={badge.variant}>{badge.label}</Badge>
                         </CardTitle>
                         <p className="mt-1 text-sm text-muted-foreground">
-                          {fmtDateTime(booking.startAt, settings.timezone ?? "Europe/Stockholm")} · {booking.partySize} guests
+                          {fmtDateTime(booking.startAt, settings.timezone ?? "Europe/Stockholm")} · {booking.partySize} guests · {currentTable}
+                        </p>
+                        <p className="mt-1 truncate text-xs text-muted-foreground">
+                          {booking.guestPhone ?? "No phone"} · {booking.guestEmail ?? "No email"}
                         </p>
                       </div>
-                      <div className="flex flex-wrap justify-end gap-2">
+                      <div className="flex shrink-0 flex-wrap items-center gap-2">
                         {booking.status === "PENDING" && (
                           <>
                             <Button
@@ -532,131 +538,141 @@ export function RestaurantBookingsSection({
                         )}
                       </div>
                     </CardHeader>
-                    <CardContent className="space-y-5">
-                      <div className="grid gap-4 sm:grid-cols-3">
-                        <div>
-                          <p className="text-xs font-medium text-muted-foreground">Contact</p>
-                          <p className="text-sm">{booking.guestPhone ?? "—"}</p>
-                          <p className="text-xs text-muted-foreground">{booking.guestEmail ?? "No email"}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs font-medium text-muted-foreground">Current table</p>
-                          <p className="text-sm">
-                            {booking.tables.length > 0
-                              ? booking.tables
-                                  .map((table) =>
-                                    table.zone ? `${table.name} (${table.zone.name})` : table.name,
-                                  )
-                                  .join(", ")
-                              : "Not assigned"}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-xs font-medium text-muted-foreground">Ends</p>
-                          <p className="text-sm">{fmtDateTime(booking.endAt, settings.timezone ?? "Europe/Stockholm")}</p>
-                        </div>
-                      </div>
+                    <CardContent className="pt-0">
+                      <details className="group border-t pt-3">
+                        <summary className="cursor-pointer list-none text-sm font-medium text-muted-foreground hover:text-foreground">
+                          <span className="group-open:hidden">Manage</span>
+                          <span className="hidden group-open:inline">Hide details</span>
+                        </summary>
 
-                      {booking.notes && (
-                        <div>
-                          <p className="text-xs font-medium text-muted-foreground">Notes</p>
-                          <p className="text-sm">{booking.notes}</p>
-                        </div>
-                      )}
-
-                      {ACTIVE_STATUSES.has(booking.status) && (
-                        <div className="rounded-lg border p-4">
-                          <div className="mb-3">
-                            <p className="text-sm font-medium">Reschedule</p>
-                            <p className="text-xs text-muted-foreground">
-                              The new time is checked against service hours, blocked periods and table capacity. Tables are reallocated automatically.
-                            </p>
-                          </div>
-                          <form
-                            action={(formData) => handleReschedule(booking.id, formData)}
-                            className="flex flex-col gap-3 sm:flex-row sm:items-end"
-                          >
-                            <div className="w-full sm:max-w-xs">
-                              <Label>New date & time</Label>
-                              <Input name="rescheduleStartAt" type="datetime-local" required className="mt-1.5" />
+                        <div className="mt-4 space-y-5">
+                          <div className="grid gap-4 sm:grid-cols-3">
+                            <div>
+                              <p className="text-xs font-medium text-muted-foreground">Contact</p>
+                              <p className="text-sm">{booking.guestPhone ?? "—"}</p>
+                              <p className="text-xs text-muted-foreground">{booking.guestEmail ?? "No email"}</p>
                             </div>
-                            <Button type="submit" size="sm" disabled={isPending}>
-                              {isPending ? "Checking…" : "Reschedule"}
-                            </Button>
-                          </form>
-                        </div>
-                      )}
-
-                      <div className="rounded-lg border p-4">
-                        <div className="mb-3 flex items-center justify-between gap-3">
-                          <div>
-                            <p className="text-sm font-medium">Assign table</p>
-                            <p className="text-xs text-muted-foreground">
-                              Capacity and time conflicts are validated on the server.
-                            </p>
-                          </div>
-                          <Button
-                            type="button"
-                            size="sm"
-                            disabled={isPending || inactive}
-                            onClick={() =>
-                              runAction(
-                                () =>
-                                  setRestaurantBookingTables({
-                                    bookingId: booking.id,
-                                    tableIds: selected,
-                                  }),
-                                "Table assignment saved.",
-                              )
-                            }
-                          >
-                            Save assignment
-                          </Button>
-                        </div>
-
-                        {allTables.length === 0 ? (
-                          <p className="text-sm text-muted-foreground">Create tables first.</p>
-                        ) : (
-                          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                            {allTables.map((table) => {
-                              const checked = selected.includes(table.id);
-                              const zone = table.zoneId
-                                ? zones.find((item) => item.id === table.zoneId)
-                                : null;
-                              const tableBookable = table.active && (!zone || zone.active);
-                              const disabled = inactive || (!tableBookable && !checked);
-                              return (
-                                <label
-                                  key={table.id}
-                                  className="flex items-start gap-2 rounded-md border px-3 py-2 text-sm"
-                                >
-                                  <input
-                                    type="checkbox"
-                                    checked={checked}
-                                    disabled={disabled}
-                                    onChange={(event) =>
-                                      toggleAssignedTable(
-                                        booking.id,
-                                        table.id,
-                                        event.target.checked,
+                            <div>
+                              <p className="text-xs font-medium text-muted-foreground">Current table</p>
+                              <p className="text-sm">
+                                {booking.tables.length > 0
+                                  ? booking.tables
+                                      .map((table) =>
+                                        table.zone ? `${table.name} (${table.zone.name})` : table.name,
                                       )
-                                    }
-                                  />
-                                  <span>
-                                    <span className="font-medium">{table.name}</span>
-                                    <span className="block text-xs text-muted-foreground">
-                                      {table.minSeats}–{table.maxSeats} seats
-                                      {zone ? ` · ${zone.name}` : ""}
-                                      {!table.active ? " · inactive table" : ""}
-                                      {zone && !zone.active ? " · inactive zone" : ""}
-                                    </span>
-                                  </span>
-                                </label>
-                              );
-                            })}
+                                      .join(", ")
+                                  : "Not assigned"}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-xs font-medium text-muted-foreground">Ends</p>
+                              <p className="text-sm">{fmtDateTime(booking.endAt, settings.timezone ?? "Europe/Stockholm")}</p>
+                            </div>
                           </div>
-                        )}
-                      </div>
+
+                          {booking.notes && (
+                            <div>
+                              <p className="text-xs font-medium text-muted-foreground">Notes</p>
+                              <p className="text-sm">{booking.notes}</p>
+                            </div>
+                          )}
+
+                          {ACTIVE_STATUSES.has(booking.status) && (
+                            <div className="rounded-lg border p-4">
+                              <div className="mb-3">
+                                <p className="text-sm font-medium">Reschedule</p>
+                                <p className="text-xs text-muted-foreground">
+                                  The new time is checked against service hours, blocked periods and table capacity. Tables are reallocated automatically.
+                                </p>
+                              </div>
+                              <form
+                                action={(formData) => handleReschedule(booking.id, formData)}
+                                className="flex flex-col gap-3 sm:flex-row sm:items-end"
+                              >
+                                <div className="w-full sm:max-w-xs">
+                                  <Label>New date & time</Label>
+                                  <Input name="rescheduleStartAt" type="datetime-local" required className="mt-1.5" />
+                                </div>
+                                <Button type="submit" size="sm" disabled={isPending}>
+                                  {isPending ? "Checking…" : "Reschedule"}
+                                </Button>
+                              </form>
+                            </div>
+                          )}
+
+                          <div className="rounded-lg border p-4">
+                            <div className="mb-3 flex items-center justify-between gap-3">
+                              <div>
+                                <p className="text-sm font-medium">Change table</p>
+                                <p className="text-xs text-muted-foreground">
+                                  The system assigns tables automatically. Use this only to override the current table; conflicts are still validated on the server.
+                                </p>
+                              </div>
+                              <Button
+                                type="button"
+                                size="sm"
+                                disabled={isPending || inactive}
+                                onClick={() =>
+                                  runAction(
+                                    () =>
+                                      setRestaurantBookingTables({
+                                        bookingId: booking.id,
+                                        tableIds: selected,
+                                      }),
+                                    "Table assignment saved.",
+                                  )
+                                }
+                              >
+                                Save table
+                              </Button>
+                            </div>
+
+                            {allTables.length === 0 ? (
+                              <p className="text-sm text-muted-foreground">Create tables first.</p>
+                            ) : (
+                              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                                {allTables.map((table) => {
+                                  const checked = selected.includes(table.id);
+                                  const zone = table.zoneId
+                                    ? zones.find((item) => item.id === table.zoneId)
+                                    : null;
+                                  const tableBookable = table.active && (!zone || zone.active);
+                                  const disabled = inactive || (!tableBookable && !checked);
+                                  return (
+                                    <label
+                                      key={table.id}
+                                      className="flex items-start gap-2 rounded-md border px-3 py-2 text-sm"
+                                    >
+                                      <input
+                                        type={settings.allowTableCombinations ? "checkbox" : "radio"}
+                                        name={settings.allowTableCombinations ? undefined : `table-${booking.id}`}
+                                        checked={checked}
+                                        disabled={disabled}
+                                        onChange={(event) =>
+                                          toggleAssignedTable(
+                                            booking.id,
+                                            table.id,
+                                            event.target.checked,
+                                          )
+                                        }
+                                      />
+                                      <span>
+                                        <span className="font-medium">{table.name}</span>
+                                        <span className="block text-xs text-muted-foreground">
+                                          {table.minSeats}–{table.maxSeats} seats
+                                          {zone ? ` · ${zone.name}` : ""}
+                                          {!table.active ? " · inactive table" : ""}
+                                          {zone && !zone.active ? " · inactive zone" : ""}
+                                        </span>
+                                      </span>
+                                    </label>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </details>
                     </CardContent>
                   </Card>
                 );
