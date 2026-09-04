@@ -58,13 +58,13 @@ describe("Restaurant Booking table allocator", () => {
         tables: [
           { id: "a2", minSeats: 1, maxSeats: 2, combinationGroup: "A" },
           { id: "a4", minSeats: 1, maxSeats: 4, combinationGroup: "A" },
-          { id: "a6", minSeats: 7, maxSeats: 6, combinationGroup: "A" },
+          { id: "a6", minSeats: 1, maxSeats: 6, combinationGroup: "A" },
         ],
         occupied: new Set(),
-        partySize: 6,
+        partySize: 9,
         allowCombinations: true,
       }),
-    ).toEqual(["a2", "a4"]);
+    ).toEqual(["a4", "a6"]);
   });
 
   it("prefers fewer tables when total capacity is equal", () => {
@@ -73,8 +73,8 @@ describe("Restaurant Booking table allocator", () => {
         tables: [
           { id: "a2a", minSeats: 1, maxSeats: 2, combinationGroup: "A" },
           { id: "a2b", minSeats: 1, maxSeats: 2, combinationGroup: "A" },
-          { id: "a4a", minSeats: 5, maxSeats: 4, combinationGroup: "A" },
-          { id: "a4b", minSeats: 5, maxSeats: 4, combinationGroup: "A" },
+          { id: "a4a", minSeats: 1, maxSeats: 4, combinationGroup: "A" },
+          { id: "a4b", minSeats: 1, maxSeats: 4, combinationGroup: "A" },
         ],
         occupied: new Set(),
         partySize: 8,

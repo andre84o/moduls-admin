@@ -1,18 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-/**
- * Tenant-safety tests for the Google Reviews admin read layer.
- *
- * requireBusinessAccess, the module gate and Prisma are mocked. They prove every
- * read is scoped by the SERVER-RESOLVED businessId, that safe defaults/empty are
- * returned when there is no row / the WEBSITE module is off / demo mode, and that
- * the cached payload is normalized on read.
- */
-
 const hoisted = vi.hoisted(() => ({
   access: { businessId: "biz_1", userId: "user_1", role: "OWNER" as const, isDemo: false },
   moduleEnabled: true,
-  // Whether the paid Google Reviews add-on is granted for the business.
   hasAddOn: true,
   settingsRow: null as Record<string, unknown> | null,
   cacheRow: null as Record<string, unknown> | null,
@@ -78,6 +68,7 @@ describe("getGoogleReviewSettings", () => {
       maxCount: 8,
       lastSyncedAt: new Date("2026-01-02T03:04:05Z"),
       lastError: null,
+      manualReviews: [],
     };
 
     const settings = await getGoogleReviewSettings();
@@ -90,6 +81,7 @@ describe("getGoogleReviewSettings", () => {
       maxCount: 8,
       lastSyncedAt: "2026-01-02T03:04:05.000Z",
       lastError: null,
+      manualReviews: [],
     });
   });
 
@@ -102,6 +94,7 @@ describe("getGoogleReviewSettings", () => {
       maxCount: 6,
       lastSyncedAt: null,
       lastError: null,
+      manualReviews: [],
     });
   });
 
@@ -179,20 +172,17 @@ describe("paid add-on gate — admin reads and panel visibility", () => {
     expect(hoisted.calls.cacheFindUnique).toHaveLength(0);
   });
 
-  it("hides the admin panel (isGoogleReviewsAddOnEnabled=false) when the add-on is disabled", async () => {
+  it("hides the admin panel when the add-on is disabled", async () => {
     hoisted.hasAddOn = false;
     expect(await isGoogleReviewsAddOnEnabled()).toBe(false);
   });
 
-  it("shows the admin panel when WEBSITE is enabled AND the add-on is granted", async () => {
-    hoisted.moduleEnabled = true;
-    hoisted.hasAddOn = true;
+  it("shows the admin panel when WEBSITE is enabled and the add-on is granted", async () => {
     expect(await isGoogleReviewsAddOnEnabled()).toBe(true);
   });
 
-  it("hides the admin panel when the WEBSITE module is disabled, regardless of add-on", async () => {
+  it("hides the admin panel when WEBSITE is disabled", async () => {
     hoisted.moduleEnabled = false;
-    hoisted.hasAddOn = true;
     expect(await isGoogleReviewsAddOnEnabled()).toBe(false);
   });
 

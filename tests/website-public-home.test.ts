@@ -13,7 +13,7 @@ describe("website public home — mapPublishedSections", () => {
     ]);
   });
 
-  it("preserves the given order (caller orders by sortOrder)", () => {
+  it("preserves the given order", () => {
     const rows = [
       { type: "siteHeader", publishedContent: { brand: { primary: "A", accent: "B" }, nav: [] } },
       { type: "hero", publishedContent: { eyebrow: "", heading: "", body: "", cta: { label: "", href: "" } } },
@@ -34,7 +34,7 @@ describe("website public home — mapPublishedSections", () => {
     expect(mapPublishedSections(rows).map((s) => s.type)).toEqual(["hero"]);
   });
 
-  it("skips sections with null/missing publishedContent (never published)", () => {
+  it("skips sections with null/missing publishedContent", () => {
     const rows = [
       { type: "hero", publishedContent: null },
       { type: "featureGrid", publishedContent: undefined },
@@ -46,22 +46,19 @@ describe("website public home — mapPublishedSections", () => {
     expect(mapPublishedSections([])).toEqual([]);
   });
 
-  it("skips partial/empty content that would otherwise crash the renderer", () => {
-    // The renderer reads cta.href, maps nav/items, etc. Content missing the
-    // minimum shape for its type must be skipped, never rendered.
+  it("keeps an empty hero because CTA is optional, while rejecting unsafe shapes", () => {
     const rows = [
-      { type: "hero", publishedContent: {} }, // no cta object
+      { type: "hero", publishedContent: {} },
       { type: "hero", publishedContent: { cta: "not-an-object" } },
-      { type: "siteHeader", publishedContent: { brand: { primary: "x" } } }, // no nav
-      { type: "siteHeader", publishedContent: { nav: [] } }, // no brand
-      { type: "featureGrid", publishedContent: { items: "nope" } }, // items not array
-      { type: "siteFooter", publishedContent: {} }, // no brand
+      { type: "siteHeader", publishedContent: { brand: { primary: "x" } } },
+      { type: "siteHeader", publishedContent: { nav: [] } },
+      { type: "featureGrid", publishedContent: { items: "nope" } },
+      { type: "siteFooter", publishedContent: {} },
     ];
-    expect(mapPublishedSections(rows)).toEqual([]);
+    expect(mapPublishedSections(rows)).toEqual([{ type: "hero", props: {} }]);
   });
 
   it("skips arrays containing null/primitive elements that would throw in .map", () => {
-    // nav/items are mapped and field-accessed, so a null element must be rejected.
     const rows = [
       { type: "siteHeader", publishedContent: { brand: { primary: "A", accent: "B" }, nav: [null] } },
       { type: "featureGrid", publishedContent: { items: [null] } },
@@ -70,10 +67,9 @@ describe("website public home — mapPublishedSections", () => {
     expect(mapPublishedSections(rows)).toEqual([]);
   });
 
-  it("treats bookingBanner with an empty object as renderable (messages optional)", () => {
-    const out = mapPublishedSections([
-      { type: "bookingBanner", publishedContent: {} },
+  it("treats bookingBanner with an empty object as renderable", () => {
+    expect(mapPublishedSections([{ type: "bookingBanner", publishedContent: {} }])).toEqual([
+      { type: "bookingBanner", props: {} },
     ]);
-    expect(out).toEqual([{ type: "bookingBanner", props: {} }]);
   });
 });
