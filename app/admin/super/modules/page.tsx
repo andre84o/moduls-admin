@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { getAllBusinessesWithModules } from "@/lib/super-admin";
 import {
   setModuleEnabled,
@@ -10,7 +11,7 @@ import {
   RESTAURANT_BOOKING_FEATURE_KEY,
 } from "@/lib/feature-access";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 
@@ -21,11 +22,19 @@ export default async function SuperModulesPage() {
 
   return (
     <div className="mx-auto max-w-3xl px-8 py-10">
-      <header className="mb-8">
-        <h1 className="text-2xl font-semibold tracking-tight">Modules</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Enable or disable products and add-ons per business.
-        </p>
+      <header className="mb-8 flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Modules</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Enable or disable products and add-ons per business.
+          </p>
+        </div>
+        <Link
+          href="/admin/super/restaurant-booking-demo"
+          className={buttonVariants({ variant: "outline" })}
+        >
+          Preview Restaurant Booking
+        </Link>
       </header>
 
       <div className="space-y-4">
