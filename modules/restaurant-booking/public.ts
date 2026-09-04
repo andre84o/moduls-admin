@@ -26,7 +26,8 @@ export async function getPublicRestaurantAvailability(input: {
   return getRestaurantAvailabilityForBusiness({ businessId, ...input });
 }
 
-export async function createPublicRestaurantBooking(input: {
+export async function createRestaurantBookingForBusiness(input: {
+  businessId: string;
   guestName: string;
   guestEmail?: string | null;
   guestPhone?: string | null;
@@ -37,7 +38,7 @@ export async function createPublicRestaurantBooking(input: {
   | { ok: true; bookingId: string; status: "PENDING" | "CONFIRMED" }
   | { ok: false; error: string }
 > {
-  const businessId = await resolvePublicBusinessId();
+  const businessId = input.businessId.trim();
   if (!businessId || !(await isRestaurantBookingEnabledForBusiness(businessId))) {
     return { ok: false, error: "Restaurant booking is not available." };
   }
@@ -136,4 +137,22 @@ export async function createPublicRestaurantBooking(input: {
     }
   }
   return { ok: false, error: "Could not create the booking. Please try again." };
+}
+
+export async function createPublicRestaurantBooking(input: {
+  guestName: string;
+  guestEmail?: string | null;
+  guestPhone?: string | null;
+  partySize: number;
+  startAt: string;
+  notes?: string | null;
+}): Promise<
+  | { ok: true; bookingId: string; status: "PENDING" | "CONFIRMED" }
+  | { ok: false; error: string }
+> {
+  const businessId = await resolvePublicBusinessId();
+  if (!businessId) {
+    return { ok: false, error: "Restaurant booking is not available." };
+  }
+  return createRestaurantBookingForBusiness({ businessId, ...input });
 }

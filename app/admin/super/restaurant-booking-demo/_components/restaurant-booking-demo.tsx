@@ -1,30 +1,49 @@
 "use client";
 
 import { RestaurantBookingWidget } from "@/modules/restaurant-booking/components/restaurant-booking-widget";
+import type {
+  RestaurantBookingAvailability,
+  RestaurantBookingSubmitInput,
+  RestaurantBookingSubmitResult,
+} from "@/modules/restaurant-booking/components/restaurant-booking-widget";
 
-const MOCK_TIMES = ["17:00", "17:30", "18:30", "19:00", "19:30", "20:30"];
+const PREVIEW_BUSINESS = "demo";
 
-function isoFor(date: string, time: string) {
-  return new Date(`${date}T${time}:00`).toISOString();
+async function readError(response: Response) {
+  try {
+    const body = (await response.json()) as { error?: string };
+    return body.error ?? "Request failed.";
+  } catch {
+    return "Request failed.";
+  }
 }
 
 export function RestaurantBookingDemo() {
   return (
     <RestaurantBookingWidget
+      title="Reserve a table · Demo-projekt"
+      subtitle="This preview uses the real Restaurant Booking API and writes real demo bookings to the database."
       loadAvailability={async ({ date, partySize }) => {
-        await new Promise((resolve) => setTimeout(resolve, 450));
-        const slots = partySize >= 11
-          ? []
-          : MOCK_TIMES.map((time) => ({
-              startAt: isoFor(date, time),
-              endAt: isoFor(date, String(Number(time.slice(0, 2)) + 2).padStart(2, "0") + time.slice(2)),
-              available: true,
-            }));
-        return { date, timezone: "Europe/Stockholm", partySize, slots };
+        const params = new URLSearchParams({
+          date,
+          partySize: String(partySize),
+          previewBusiness: PREVIEW_BUSINESS,
+        });
+        const response = await fetch(
+          `/api/public/restaurant-booking/availability?${params.toString()}`,
+          { cache: "no-store" },
+        );
+        if (!response.ok) throw new Error(await readError(response));
+        return (await response.json()) as RestaurantBookingAvailability;
       }}
-      submitBooking={async () => {
-        await new Promise((resolve) => setTimeout(resolve, 650));
-        return { status: "PENDING" };
+      submitBooking={async (input: RestaurantBookingSubmitInput) => {
+        const response = await fetch("/api/public/restaurant-booking/book", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ...input, previewBusiness: PREVIEW_BUSINESS }),
+        });
+        if (!response.ok) throw new Error(await readError(response));
+        return (await response.json()) as RestaurantBookingSubmitResult;
       }}
     />
   );
