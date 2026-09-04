@@ -4,13 +4,15 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import type { AdminBooking, AdminProperty } from "../../../types";
 import type {
+  AdminRestaurantBlockedPeriod,
   AdminRestaurantBooking,
+  AdminRestaurantServicePeriod,
   AdminRestaurantTable,
   AdminRestaurantZone,
   RestaurantBookingSettingsInput,
 } from "@/modules/restaurant-booking/types";
 import { BookingsSection } from "./index";
-import { RestaurantBookingsSection } from "./restaurant-bookings";
+import { RestaurantBookingProduct } from "./restaurant-booking-product";
 
 export function BookingsHub({
   bookings,
@@ -21,6 +23,8 @@ export function BookingsHub({
   restaurantZones,
   unzonedRestaurantTables,
   restaurantBookings,
+  restaurantServicePeriods,
+  restaurantBlockedPeriods,
 }: {
   bookings: AdminBooking[];
   properties: AdminProperty[];
@@ -30,27 +34,30 @@ export function BookingsHub({
   restaurantZones: AdminRestaurantZone[];
   unzonedRestaurantTables: AdminRestaurantTable[];
   restaurantBookings: AdminRestaurantBooking[];
+  restaurantServicePeriods: AdminRestaurantServicePeriod[];
+  restaurantBlockedPeriods: AdminRestaurantBlockedPeriod[];
 }) {
   const hasBoth = rentalBookingEnabled && restaurantBookingEnabled;
   const [domain, setDomain] = useState<"rental" | "restaurant">(
     restaurantBookingEnabled && !rentalBookingEnabled ? "restaurant" : "rental",
   );
 
+  const restaurantProduct = (
+    <RestaurantBookingProduct
+      settings={restaurantBookingSettings}
+      zones={restaurantZones}
+      unzonedTables={unzonedRestaurantTables}
+      bookings={restaurantBookings}
+      servicePeriods={restaurantServicePeriods}
+      blockedPeriods={restaurantBlockedPeriods}
+    />
+  );
+
   if (rentalBookingEnabled && !restaurantBookingEnabled) {
     return <BookingsSection bookings={bookings} properties={properties} />;
   }
 
-  if (!rentalBookingEnabled && restaurantBookingEnabled) {
-    return (
-      <RestaurantBookingsSection
-        settings={restaurantBookingSettings}
-        zones={restaurantZones}
-        unzonedTables={unzonedRestaurantTables}
-        bookings={restaurantBookings}
-      />
-    );
-  }
-
+  if (!rentalBookingEnabled && restaurantBookingEnabled) return restaurantProduct;
   if (!rentalBookingEnabled && !restaurantBookingEnabled) return null;
 
   return (
@@ -79,12 +86,7 @@ export function BookingsHub({
       {domain === "rental" ? (
         <BookingsSection bookings={bookings} properties={properties} />
       ) : (
-        <RestaurantBookingsSection
-          settings={restaurantBookingSettings}
-          zones={restaurantZones}
-          unzonedTables={unzonedRestaurantTables}
-          bookings={restaurantBookings}
-        />
+        restaurantProduct
       )}
     </div>
   );

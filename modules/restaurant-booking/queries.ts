@@ -11,6 +11,7 @@ export async function getRestaurantBookingSettings() {
   const row = await getPrisma().restaurantBookingSettings.findUnique({
     where: { businessId: access.businessId },
     select: {
+      timezone: true,
       slotIntervalMin: true,
       defaultDurationMin: true,
       turnaroundMin: true,
@@ -23,6 +24,28 @@ export async function getRestaurantBookingSettings() {
   });
 
   return row ?? DEFAULT_RESTAURANT_BOOKING_SETTINGS;
+}
+
+export async function getRestaurantServicePeriods() {
+  const access = await requireRestaurantBooking();
+  if (access.isDemo) return [];
+
+  return getPrisma().restaurantServicePeriod.findMany({
+    where: { businessId: access.businessId },
+    orderBy: [{ weekday: "asc" }, { startMinute: "asc" }],
+    select: { id: true, weekday: true, startMinute: true, endMinute: true },
+  });
+}
+
+export async function getRestaurantBlockedPeriods() {
+  const access = await requireRestaurantBooking();
+  if (access.isDemo) return [];
+
+  return getPrisma().restaurantBlockedPeriod.findMany({
+    where: { businessId: access.businessId },
+    orderBy: { startAt: "asc" },
+    select: { id: true, startAt: true, endAt: true, reason: true },
+  });
 }
 
 export async function getRestaurantZonesWithTables() {

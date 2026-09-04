@@ -15,12 +15,16 @@ import {
   getRestaurantZonesWithTables,
   getUnzonedRestaurantTables,
   getRestaurantBookings,
+  getRestaurantServicePeriods,
+  getRestaurantBlockedPeriods,
 } from "@/modules/restaurant-booking/queries";
 import { isRestaurantBookingEnabledForBusiness } from "@/modules/restaurant-booking/guards";
 import { isRentalBookingEnabledForBusiness } from "@/lib/rental-booking";
 import {
   DEFAULT_RESTAURANT_BOOKING_SETTINGS,
+  type AdminRestaurantBlockedPeriod,
   type AdminRestaurantBooking,
+  type AdminRestaurantServicePeriod,
   type AdminRestaurantTable,
   type AdminRestaurantZone,
 } from "@/modules/restaurant-booking/types";
@@ -82,13 +86,17 @@ export default async function AdminPage({
   let restaurantZones: AdminRestaurantZone[] = [];
   let unzonedRestaurantTables: AdminRestaurantTable[] = [];
   let restaurantBookings: AdminRestaurantBooking[] = [];
+  let restaurantServicePeriods: AdminRestaurantServicePeriod[] = [];
+  let restaurantBlockedPeriods: AdminRestaurantBlockedPeriod[] = [];
 
   if (restaurantBookingEnabled) {
-    const [settings, zones, unzoned, restaurantRows] = await Promise.all([
+    const [settings, zones, unzoned, restaurantRows, servicePeriods, blockedPeriods] = await Promise.all([
       getRestaurantBookingSettings(),
       getRestaurantZonesWithTables(),
       getUnzonedRestaurantTables(),
       getRestaurantBookings(),
+      getRestaurantServicePeriods(),
+      getRestaurantBlockedPeriods(),
     ]);
 
     restaurantBookingSettings = settings;
@@ -101,6 +109,12 @@ export default async function AdminPage({
       ...booking,
       startAt: booking.startAt.toISOString(),
       endAt: booking.endAt.toISOString(),
+    }));
+    restaurantServicePeriods = servicePeriods;
+    restaurantBlockedPeriods = blockedPeriods.map((period) => ({
+      ...period,
+      startAt: period.startAt.toISOString(),
+      endAt: period.endAt.toISOString(),
     }));
   }
 
@@ -128,6 +142,8 @@ export default async function AdminPage({
       restaurantZones={restaurantZones}
       unzonedRestaurantTables={unzonedRestaurantTables}
       restaurantBookings={restaurantBookings}
+      restaurantServicePeriods={restaurantServicePeriods}
+      restaurantBlockedPeriods={restaurantBlockedPeriods}
       businesses={businesses.map((b) => ({ id: b.id, name: b.name, role: b.role }))}
       activeBusinessId={activeId}
       enabledModules={Array.from(enabledModules)}

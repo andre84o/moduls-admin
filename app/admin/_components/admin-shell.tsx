@@ -19,7 +19,9 @@ import type {
   AdminCachedGoogleReviews,
 } from "@/modules/website/google-reviews/queries";
 import type {
+  AdminRestaurantBlockedPeriod,
   AdminRestaurantBooking,
+  AdminRestaurantServicePeriod,
   AdminRestaurantTable,
   AdminRestaurantZone,
   RestaurantBookingSettingsInput,
@@ -48,6 +50,8 @@ export function AdminShell({
   restaurantZones,
   unzonedRestaurantTables,
   restaurantBookings,
+  restaurantServicePeriods,
+  restaurantBlockedPeriods,
   businesses,
   activeBusinessId,
   enabledModules,
@@ -68,6 +72,8 @@ export function AdminShell({
   restaurantZones: AdminRestaurantZone[];
   unzonedRestaurantTables: AdminRestaurantTable[];
   restaurantBookings: AdminRestaurantBooking[];
+  restaurantServicePeriods: AdminRestaurantServicePeriod[];
+  restaurantBlockedPeriods: AdminRestaurantBlockedPeriod[];
   businesses: BusinessOption[];
   activeBusinessId: string | null;
   enabledModules: string[];
@@ -186,6 +192,8 @@ export function AdminShell({
                 restaurantZones={restaurantZones}
                 unzonedRestaurantTables={unzonedRestaurantTables}
                 restaurantBookings={restaurantBookings}
+                restaurantServicePeriods={restaurantServicePeriods}
+                restaurantBlockedPeriods={restaurantBlockedPeriods}
               />
             )}
             {effectiveActive === "customers" && (
