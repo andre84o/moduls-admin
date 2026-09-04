@@ -8,19 +8,19 @@ import { isDemoMode } from "./config";
 import {
   KNOWN_FEATURE_KEYS,
   CATERING_FEATURE_KEY,
+  RENTAL_BOOKING_FEATURE_KEY,
   RESTAURANT_BOOKING_FEATURE_KEY,
 } from "./feature-access";
 import type { ProjectType } from "@/app/generated/prisma/enums";
 
 /**
- * Toggle an optional module (WEBSITE / RENTAL / BOOKING / CRM / RESTAURANT) for
- * a business. SUPER_ADMIN only. Disabling preserves rows/data and only changes
- * Project.status.
+ * Toggle a customer-facing module. BOOKING is intentionally excluded because
+ * it is the shared technical engine behind booking products, not a sellable
+ * product by itself.
  */
 const TOGGLEABLE = new Set<ProjectType>([
   "WEBSITE",
   "RENTAL",
-  "BOOKING",
   "CRM",
   "RESTAURANT",
 ]);
@@ -56,13 +56,19 @@ export async function setModuleEnabled(formData: FormData) {
       data: { status: "DISABLED" },
     });
 
-    // Restaurant Booking cannot remain granted when its booking engine or
-    // Restaurant capability is explicitly disabled.
-    if (type === "BOOKING" || type === "RESTAURANT") {
+    // A product entitlement cannot remain enabled after its parent capability
+    // has been explicitly disabled.
+    if (type === "RENTAL") {
+      await prisma.businessFeatureAccess.updateMany({
+        where: { businessId, key: RENTAL_BOOKING_FEATURE_KEY },
+        data: { enabled: false },
+      });
+    }
+    if (type === "RESTAURANT") {
       await prisma.businessFeatureAccess.updateMany({
         where: {
           businessId,
-          key: RESTAURANT_BOOKING_FEATURE_KEY,
+          key: { in: [CATERING_FEATURE_KEY, RESTAURANT_BOOKING_FEATURE_KEY] },
         },
         data: { enabled: false },
       });
@@ -82,10 +88,7 @@ export async function setModuleEnabled(formData: FormData) {
   revalidatePath("/admin");
 }
 
-/**
- * Grant or revoke a paid add-on for a business. SUPER_ADMIN only.
- * Add-ons live in BusinessFeatureAccess and never become ProjectType values.
- */
+/** Grant or revoke a paid product/add-on for a business. SUPER_ADMIN only. */
 export async function setBusinessFeatureAccess(input: {
   businessId: string;
   key: string;
@@ -101,17 +104,21 @@ export async function setBusinessFeatureAccess(input: {
 
   const prisma = getPrisma();
 
+  if (enabled && key === RENTAL_BOOKING_FEATURE_KEY) {
+    const rental = await prisma.project.findFirst({
+      where: { businessId, type: "RENTAL", status: "ACTIVE" },
+      select: { id: true },
+    });
+    if (!rental) return;
+    await ensureModuleActive(businessId, "BOOKING");
+  }
+
   if (enabled && key === RESTAURANT_BOOKING_FEATURE_KEY) {
-    // Product rule: Restaurant Booking is an add-on to RESTAURANT, not a way to
-    // silently turn RESTAURANT on. The Super Admin must enable RESTAURANT first.
     const restaurant = await prisma.project.findFirst({
       where: { businessId, type: "RESTAURANT", status: "ACTIVE" },
       select: { id: true },
     });
     if (!restaurant) return;
-
-    // BOOKING is the shared technical engine. Enabling Restaurant Booking makes
-    // sure it is available, without changing RENTAL or any other product access.
     await ensureModuleActive(businessId, "BOOKING");
   }
 
@@ -130,8 +137,6 @@ export async function setBusinessFeatureAccess(input: {
     metadata: { key },
   });
 
-  // When CATERING is enabled, seed a default cateringMenus section if none
-  // exists so the admin sees it immediately without clicking "Add menu".
   if (enabled && key === CATERING_FEATURE_KEY) {
     const page = await prisma.websitePage.findFirst({
       where: { businessId },

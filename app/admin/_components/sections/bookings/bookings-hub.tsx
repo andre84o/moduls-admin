@@ -15,7 +15,7 @@ import { RestaurantBookingsSection } from "./restaurant-bookings";
 export function BookingsHub({
   bookings,
   properties,
-  rentalEnabled,
+  rentalBookingEnabled,
   restaurantBookingEnabled,
   restaurantBookingSettings,
   restaurantZones,
@@ -24,23 +24,23 @@ export function BookingsHub({
 }: {
   bookings: AdminBooking[];
   properties: AdminProperty[];
-  rentalEnabled: boolean;
+  rentalBookingEnabled: boolean;
   restaurantBookingEnabled: boolean;
   restaurantBookingSettings: RestaurantBookingSettingsInput;
   restaurantZones: AdminRestaurantZone[];
   unzonedRestaurantTables: AdminRestaurantTable[];
   restaurantBookings: AdminRestaurantBooking[];
 }) {
-  const hasBoth = rentalEnabled && restaurantBookingEnabled;
+  const hasBoth = rentalBookingEnabled && restaurantBookingEnabled;
   const [domain, setDomain] = useState<"rental" | "restaurant">(
-    restaurantBookingEnabled && !rentalEnabled ? "restaurant" : "rental",
+    restaurantBookingEnabled && !rentalBookingEnabled ? "restaurant" : "rental",
   );
 
-  if (!restaurantBookingEnabled) {
+  if (rentalBookingEnabled && !restaurantBookingEnabled) {
     return <BookingsSection bookings={bookings} properties={properties} />;
   }
 
-  if (!rentalEnabled) {
+  if (!rentalBookingEnabled && restaurantBookingEnabled) {
     return (
       <RestaurantBookingsSection
         settings={restaurantBookingSettings}
@@ -50,6 +50,8 @@ export function BookingsHub({
       />
     );
   }
+
+  if (!rentalBookingEnabled && !restaurantBookingEnabled) return null;
 
   return (
     <div>

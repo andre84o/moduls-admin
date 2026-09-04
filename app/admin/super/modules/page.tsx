@@ -6,6 +6,7 @@ import {
 import {
   GOOGLE_REVIEWS_FEATURE_KEY,
   CATERING_FEATURE_KEY,
+  RENTAL_BOOKING_FEATURE_KEY,
   RESTAURANT_BOOKING_FEATURE_KEY,
 } from "@/lib/feature-access";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 
-const MODULES = ["WEBSITE", "RESTAURANT", "RENTAL", "BOOKING", "CRM"] as const;
+const MODULES = ["WEBSITE", "RESTAURANT", "RENTAL", "CRM"] as const;
 
 export default async function SuperModulesPage() {
   const businesses = await getAllBusinessesWithModules();
@@ -23,7 +24,7 @@ export default async function SuperModulesPage() {
       <header className="mb-8">
         <h1 className="text-2xl font-semibold tracking-tight">Modules</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Enable or disable optional modules per business.
+          Enable or disable products and add-ons per business.
         </p>
       </header>
 
@@ -120,6 +121,28 @@ export default async function SuperModulesPage() {
                   <form
                     action={setBusinessFeatureAccess.bind(null, {
                       businessId: b.id,
+                      key: RENTAL_BOOKING_FEATURE_KEY,
+                      enabled: !b.addOns.RENTAL_BOOKING,
+                    })}
+                  >
+                    <Button
+                      type="submit"
+                      size="sm"
+                      variant={b.addOns.RENTAL_BOOKING ? "default" : "outline"}
+                      disabled={!b.modules.RENTAL && !b.addOns.RENTAL_BOOKING}
+                      className={
+                        b.addOns.RENTAL_BOOKING
+                          ? "bg-green-600 hover:bg-green-700 border-green-600 text-white"
+                          : ""
+                      }
+                    >
+                      Rental Booking · {b.addOns.RENTAL_BOOKING ? "Enabled" : "Disabled"}
+                    </Button>
+                  </form>
+
+                  <form
+                    action={setBusinessFeatureAccess.bind(null, {
+                      businessId: b.id,
                       key: RESTAURANT_BOOKING_FEATURE_KEY,
                       enabled: !b.addOns.RESTAURANT_BOOKING,
                     })}
@@ -139,6 +162,12 @@ export default async function SuperModulesPage() {
                     </Button>
                   </form>
                 </div>
+
+                {!b.modules.RENTAL && (
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    Rental Booking requires the RENTAL module.
+                  </p>
+                )}
                 {!b.modules.RESTAURANT && (
                   <p className="mt-2 text-xs text-muted-foreground">
                     Restaurant add-ons require the RESTAURANT module.

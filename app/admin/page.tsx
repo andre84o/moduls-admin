@@ -17,6 +17,7 @@ import {
   getRestaurantBookings,
 } from "@/modules/restaurant-booking/queries";
 import { isRestaurantBookingEnabledForBusiness } from "@/modules/restaurant-booking/guards";
+import { isRentalBookingEnabledForBusiness } from "@/lib/rental-booking";
 import {
   DEFAULT_RESTAURANT_BOOKING_SETTINGS,
   type AdminRestaurantBooking,
@@ -70,9 +71,12 @@ export default async function AdminPage({
     getEnabledModules(),
   ]);
 
-  const restaurantBookingEnabled = activeId
-    ? await isRestaurantBookingEnabledForBusiness(activeId)
-    : false;
+  const [rentalBookingEnabled, restaurantBookingEnabled] = activeId
+    ? await Promise.all([
+        isRentalBookingEnabledForBusiness(activeId),
+        isRestaurantBookingEnabledForBusiness(activeId),
+      ])
+    : [false, false];
 
   let restaurantBookingSettings = DEFAULT_RESTAURANT_BOOKING_SETTINGS;
   let restaurantZones: AdminRestaurantZone[] = [];
@@ -118,6 +122,7 @@ export default async function AdminPage({
       googleReviewsConfigured={googleReviewsConfigured}
       googleReviewsAddOnEnabled={googleReviewsAddOnEnabled}
       cateringAddOnEnabled={cateringAddOnEnabled}
+      rentalBookingEnabled={rentalBookingEnabled}
       restaurantBookingEnabled={restaurantBookingEnabled}
       restaurantBookingSettings={restaurantBookingSettings}
       restaurantZones={restaurantZones}

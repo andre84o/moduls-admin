@@ -42,6 +42,7 @@ export function AdminShell({
   googleReviewsConfigured,
   googleReviewsAddOnEnabled,
   cateringAddOnEnabled,
+  rentalBookingEnabled,
   restaurantBookingEnabled,
   restaurantBookingSettings,
   restaurantZones,
@@ -61,6 +62,7 @@ export function AdminShell({
   googleReviewsConfigured: boolean;
   googleReviewsAddOnEnabled: boolean;
   cateringAddOnEnabled: boolean;
+  rentalBookingEnabled: boolean;
   restaurantBookingEnabled: boolean;
   restaurantBookingSettings: RestaurantBookingSettingsInput;
   restaurantZones: AdminRestaurantZone[];
@@ -69,7 +71,6 @@ export function AdminShell({
   businesses: BusinessOption[];
   activeBusinessId: string | null;
   enabledModules: string[];
-  /** Initial section from the ?tab= query (deep links from other routes). */
   initialSection?: AdminSectionId;
 }) {
   const router = useRouter();
@@ -101,7 +102,10 @@ export function AdminShell({
     return () => document.removeEventListener("mousedown", onPointerDown);
   }, [sidebarOpen]);
 
-  const visibleSections = visibleAdminSections(enabledModules).filter(
+  const navigationModules = enabledModules.filter((module) => module !== "BOOKING");
+  if (rentalBookingEnabled || restaurantBookingEnabled) navigationModules.push("BOOKING");
+
+  const visibleSections = visibleAdminSections(navigationModules).filter(
     (s) => s.id !== "googleReviews" || googleReviewsAddOnEnabled,
   );
 
@@ -159,7 +163,7 @@ export function AdminShell({
           <AdminSidebarContent
             businesses={businesses}
             activeBusinessId={activeBusinessId}
-            enabledModules={enabledModules}
+            enabledModules={navigationModules}
             googleReviewsAddOnEnabled={googleReviewsAddOnEnabled}
             isSuperAdmin={isSuperAdmin}
             activeSection={effectiveActive}
@@ -176,7 +180,7 @@ export function AdminShell({
               <BookingsHub
                 bookings={bookings}
                 properties={properties}
-                rentalEnabled={enabledModules.includes("RENTAL")}
+                rentalBookingEnabled={rentalBookingEnabled}
                 restaurantBookingEnabled={restaurantBookingEnabled}
                 restaurantBookingSettings={restaurantBookingSettings}
                 restaurantZones={restaurantZones}

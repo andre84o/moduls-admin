@@ -13,10 +13,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import {
-  createBooking,
-  setBookingStatus,
-  deleteBooking,
-} from "@/lib/actions";
+  createRentalBooking as createBooking,
+  setRentalBookingStatus as setBookingStatus,
+  deleteRentalBooking as deleteBooking,
+} from "@/modules/rental-booking/actions";
 import type {
   AdminBooking,
   AdminProperty,
@@ -36,12 +36,10 @@ const statusBadge: Record<
   REFUNDED: { label: "Refunded", variant: "outline" },
 };
 
-// Check-in / check-out are date-based, so show the date without a time.
 function fmtDate(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, { dateStyle: "medium" });
 }
 
-// Money is stored in MINOR units (öre/cents); show major units + currency code.
 function money(minor: number, currency: string): string {
   return `${(minor / 100).toFixed(2)} ${currency.toUpperCase()}`;
 }

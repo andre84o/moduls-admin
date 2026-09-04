@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { createBookingCheckout } from "@/lib/booking-checkout";
+import { createRentalBookingCheckout } from "@/modules/rental-booking/checkout";
 
 type Props = {
   propertyId: string;
@@ -25,7 +25,6 @@ type Props = {
   reservedRanges: { start: string; end: string }[];
 };
 
-// Nights between two "yyyy-mm-dd" strings (UTC-midnight diff). Display only.
 const nightsBetween = (a: string | null, b: string | null) => {
   if (!a || !b) return 0;
   const d = (s: string) => {
@@ -60,7 +59,6 @@ export function RentalBookingWidget({
   const [isPending, startTransition] = useTransition();
 
   const nights = nightsBetween(range.checkIn, range.checkOut);
-  // DISPLAY ONLY — the server action is the source of truth for price.
   const total = nights * pricePerNight + cleaningFee;
 
   const canSubmit =
@@ -73,7 +71,7 @@ export function RentalBookingWidget({
   const handleSubmit = () => {
     startTransition(async () => {
       setError(null);
-      const res = await createBookingCheckout({
+      const res = await createRentalBookingCheckout({
         propertyId,
         checkIn: range.checkIn!,
         checkOut: range.checkOut!,

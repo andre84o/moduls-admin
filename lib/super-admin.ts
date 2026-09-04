@@ -5,6 +5,7 @@ import { DEMO_BUSINESS_ID } from "./config";
 import {
   GOOGLE_REVIEWS_FEATURE_KEY,
   CATERING_FEATURE_KEY,
+  RENTAL_BOOKING_FEATURE_KEY,
   RESTAURANT_BOOKING_FEATURE_KEY,
 } from "./feature-access";
 import type { ProjectType } from "@/app/generated/prisma/enums";
@@ -31,6 +32,7 @@ export type BusinessModules = {
   addOns: {
     GOOGLE_REVIEWS: boolean;
     CATERING: boolean;
+    RENTAL_BOOKING: boolean;
     RESTAURANT_BOOKING: boolean;
   };
 };
@@ -45,14 +47,14 @@ export async function getAllBusinessesWithModules(): Promise<BusinessModules[]> 
         name: "Demo Estates",
         slug: "demo",
         modules: { WEBSITE: false, RENTAL: true, BOOKING: true, CRM: false, RESTAURANT: false },
-        addOns: { GOOGLE_REVIEWS: false, CATERING: false, RESTAURANT_BOOKING: false },
+        addOns: { GOOGLE_REVIEWS: false, CATERING: false, RENTAL_BOOKING: true, RESTAURANT_BOOKING: false },
       },
       {
         id: "demo-business-2",
         name: "Acme Services",
         slug: "acme",
         modules: { WEBSITE: true, RENTAL: false, BOOKING: true, CRM: true, RESTAURANT: true },
-        addOns: { GOOGLE_REVIEWS: true, CATERING: false, RESTAURANT_BOOKING: true },
+        addOns: { GOOGLE_REVIEWS: true, CATERING: false, RENTAL_BOOKING: false, RESTAURANT_BOOKING: true },
       },
     ];
   }
@@ -67,6 +69,7 @@ export async function getAllBusinessesWithModules(): Promise<BusinessModules[]> 
             in: [
               GOOGLE_REVIEWS_FEATURE_KEY,
               CATERING_FEATURE_KEY,
+              RENTAL_BOOKING_FEATURE_KEY,
               RESTAURANT_BOOKING_FEATURE_KEY,
             ],
           },
@@ -95,6 +98,7 @@ export async function getAllBusinessesWithModules(): Promise<BusinessModules[]> 
       addOns: {
         GOOGLE_REVIEWS: feature(GOOGLE_REVIEWS_FEATURE_KEY),
         CATERING: feature(CATERING_FEATURE_KEY),
+        RENTAL_BOOKING: feature(RENTAL_BOOKING_FEATURE_KEY),
         RESTAURANT_BOOKING: feature(RESTAURANT_BOOKING_FEATURE_KEY),
       },
     };
