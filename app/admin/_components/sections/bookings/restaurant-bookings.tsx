@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -8,7 +8,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
-  createRestaurantBooking,
   createRestaurantTable,
   createRestaurantZone,
   saveRestaurantBookingSettings,
@@ -16,7 +15,11 @@ import {
   updateRestaurantTable,
   updateRestaurantZone,
 } from "@/modules/restaurant-booking/actions";
-import { setBookingStatus } from "@/lib/actions";
+import {
+  createManagedRestaurantBooking,
+  rescheduleRestaurantBooking,
+  setManagedRestaurantBookingStatus,
+} from "@/modules/restaurant-booking/lifecycle-actions";
 import type {
   AdminRestaurantBooking,
   AdminRestaurantBookingStatus,
@@ -32,6 +35,11 @@ const ACTIVE_STATUSES = new Set<AdminRestaurantBookingStatus>([
   "PENDING",
   "PAYMENT_PENDING",
   "CONFIRMED",
+]);
+
+const REACTIVATABLE_STATUSES = new Set<AdminRestaurantBookingStatus>([
+  "DECLINED",
+  "CANCELLED",
 ]);
 
 const statusBadge: Record<
@@ -66,6 +74,13 @@ function numberFrom(formData: FormData, key: string): number {
   return Number(String(formData.get(key) ?? "0"));
 }
 
+function dateFrom(formData: FormData, key: string): Date | null {
+  const raw = String(formData.get(key) ?? "").trim();
+  if (!raw) return null;
+  const date = new Date(raw);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
 export function RestaurantBookingsSection({
   settings,
   zones,
@@ -84,7 +99,7 @@ export function RestaurantBookingsSection({
   const [todayKey, setTodayKey] = useState<string | null>(null);
   const [nowIso, setNowIso] = useState<string | null>(null);
   const [selectedTables, setSelectedTables] = useState<Record<string, string[]>>(
-    () => Object.fromEntries(bookings.map((booking) => [booking.id, booking.tables.map((t) => t.id)])),
+    () => Object.fromEntries(bookings.map((booking) => [booking.id, booking.tables.map((table) => table.id)])),
   );
 
   useEffect(() => {
@@ -95,7 +110,7 @@ export function RestaurantBookingsSection({
 
   useEffect(() => {
     setSelectedTables(
-      Object.fromEntries(bookings.map((booking) => [booking.id, booking.tables.map((t) => t.id)])),
+      Object.fromEntries(bookings.map((booking) => [booking.id, booking.tables.map((table) => table.id)])),
     );
   }, [bookings]);
 
@@ -103,7 +118,13 @@ export function RestaurantBookingsSection({
     ...zones.flatMap((zone) => zone.tables),
     ...unzonedTables,
   ];
-  const activeTables = allTables.filter((table) => table.active);
+  const activeZoneIds = useMemo(
+    () => new Set(zones.filter((zone) => zone.active).map((zone) => zone.id)),
+    [zones],
+  );
+  const activeTables = allTables.filter(
+    (table) => table.active && (!table.zoneId || activeZoneIds.has(table.zoneId)),
+  );
   const activeBookings = bookings.filter((booking) => ACTIVE_STATUSES.has(booking.status));
   const todayBookings = todayKey
     ? activeBookings.filter((booking) => localDayKey(booking.startAt) === todayKey)
@@ -157,16 +178,15 @@ export function RestaurantBookingsSection({
   }
 
   function handleCreateBooking(formData: FormData) {
-    const localStart = String(formData.get("startAt") ?? "");
-    const start = new Date(localStart);
-    if (!localStart || Number.isNaN(start.getTime())) {
+    const start = dateFrom(formData, "startAt");
+    if (!start) {
       setFeedback({ kind: "error", text: "Choose a valid booking date and time." });
       return;
     }
 
     runAction(
       () =>
-        createRestaurantBooking({
+        createManagedRestaurantBooking({
           guestName: String(formData.get("guestName") ?? ""),
           guestEmail: String(formData.get("guestEmail") ?? "") || null,
           guestPhone: String(formData.get("guestPhone") ?? "") || null,
@@ -174,7 +194,20 @@ export function RestaurantBookingsSection({
           startAt: start.toISOString(),
           notes: String(formData.get("notes") ?? "") || null,
         }),
-      "Booking created.",
+      "Booking created and table assigned.",
+    );
+  }
+
+  function handleReschedule(bookingId: string, formData: FormData) {
+    const start = dateFrom(formData, "rescheduleStartAt");
+    if (!start) {
+      setFeedback({ kind: "error", text: "Choose a valid new date and time." });
+      return;
+    }
+
+    runAction(
+      () => rescheduleRestaurantBooking({ bookingId, startAt: start.toISOString() }),
+      "Booking rescheduled and table reallocated.",
     );
   }
 
@@ -227,7 +260,7 @@ export function RestaurantBookingsSection({
             <option value="">No zone</option>
             {zones.map((zone) => (
               <option key={zone.id} value={zone.id}>
-                {zone.name}
+                {zone.name}{zone.active ? "" : " (inactive)"}
               </option>
             ))}
           </select>
@@ -323,7 +356,7 @@ export function RestaurantBookingsSection({
             </Card>
             <Card>
               <CardHeader className="pb-2"><CardTitle className="text-sm">Active tables</CardTitle></CardHeader>
-              <CardContent><p className="text-3xl font-semibold">{activeTables.length}</p><p className="text-xs text-muted-foreground">available inventory</p></CardContent>
+              <CardContent><p className="text-3xl font-semibold">{activeTables.length}</p><p className="text-xs text-muted-foreground">bookable inventory</p></CardContent>
             </Card>
           </div>
 
@@ -401,8 +434,11 @@ export function RestaurantBookingsSection({
                 </div>
                 <div className="sm:col-span-2">
                   <Button type="submit" disabled={isPending}>
-                    {isPending ? "Saving…" : "Add booking"}
+                    {isPending ? "Checking availability…" : "Add booking"}
                   </Button>
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    Manual bookings use the same availability and automatic table allocator as public bookings.
+                  </p>
                 </div>
               </form>
             </CardContent>
@@ -428,21 +464,37 @@ export function RestaurantBookingsSection({
                           {fmtDateTime(booking.startAt)} · {booking.partySize} guests
                         </p>
                       </div>
-                      <div className="flex gap-2">
+                      <div className="flex flex-wrap justify-end gap-2">
                         {booking.status === "PENDING" && (
-                          <Button
-                            type="button"
-                            size="sm"
-                            disabled={isPending}
-                            onClick={() =>
-                              runAction(
-                                () => setBookingStatus(booking.id, "CONFIRMED"),
-                                "Booking confirmed.",
-                              )
-                            }
-                          >
-                            Confirm
-                          </Button>
+                          <>
+                            <Button
+                              type="button"
+                              size="sm"
+                              disabled={isPending}
+                              onClick={() =>
+                                runAction(
+                                  () => setManagedRestaurantBookingStatus(booking.id, "CONFIRMED"),
+                                  "Booking confirmed.",
+                                )
+                              }
+                            >
+                              Confirm
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              disabled={isPending}
+                              onClick={() =>
+                                runAction(
+                                  () => setManagedRestaurantBookingStatus(booking.id, "DECLINED"),
+                                  "Booking declined.",
+                                )
+                              }
+                            >
+                              Decline
+                            </Button>
+                          </>
                         )}
                         {ACTIVE_STATUSES.has(booking.status) && (
                           <Button
@@ -452,12 +504,27 @@ export function RestaurantBookingsSection({
                             disabled={isPending}
                             onClick={() =>
                               runAction(
-                                () => setBookingStatus(booking.id, "CANCELLED"),
+                                () => setManagedRestaurantBookingStatus(booking.id, "CANCELLED"),
                                 "Booking cancelled.",
                               )
                             }
                           >
                             Cancel
+                          </Button>
+                        )}
+                        {REACTIVATABLE_STATUSES.has(booking.status) && (
+                          <Button
+                            type="button"
+                            size="sm"
+                            disabled={isPending}
+                            onClick={() =>
+                              runAction(
+                                () => setManagedRestaurantBookingStatus(booking.id, "PENDING"),
+                                "Booking reactivated and capacity rechecked.",
+                              )
+                            }
+                          >
+                            Reactivate
                           </Button>
                         )}
                       </div>
@@ -494,6 +561,29 @@ export function RestaurantBookingsSection({
                         </div>
                       )}
 
+                      {ACTIVE_STATUSES.has(booking.status) && (
+                        <div className="rounded-lg border p-4">
+                          <div className="mb-3">
+                            <p className="text-sm font-medium">Reschedule</p>
+                            <p className="text-xs text-muted-foreground">
+                              The new time is checked against service hours, blocked periods and table capacity. Tables are reallocated automatically.
+                            </p>
+                          </div>
+                          <form
+                            action={(formData) => handleReschedule(booking.id, formData)}
+                            className="flex flex-col gap-3 sm:flex-row sm:items-end"
+                          >
+                            <div className="w-full sm:max-w-xs">
+                              <Label>New date & time</Label>
+                              <Input name="rescheduleStartAt" type="datetime-local" required className="mt-1.5" />
+                            </div>
+                            <Button type="submit" size="sm" disabled={isPending}>
+                              {isPending ? "Checking…" : "Reschedule"}
+                            </Button>
+                          </form>
+                        </div>
+                      )}
+
                       <div className="rounded-lg border p-4">
                         <div className="mb-3 flex items-center justify-between gap-3">
                           <div>
@@ -527,8 +617,11 @@ export function RestaurantBookingsSection({
                           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                             {allTables.map((table) => {
                               const checked = selected.includes(table.id);
-                              const disabled = inactive || (!table.active && !checked);
-                              const zoneName = zones.find((zone) => zone.id === table.zoneId)?.name;
+                              const zone = table.zoneId
+                                ? zones.find((item) => item.id === table.zoneId)
+                                : null;
+                              const tableBookable = table.active && (!zone || zone.active);
+                              const disabled = inactive || (!tableBookable && !checked);
                               return (
                                 <label
                                   key={table.id}
@@ -550,8 +643,9 @@ export function RestaurantBookingsSection({
                                     <span className="font-medium">{table.name}</span>
                                     <span className="block text-xs text-muted-foreground">
                                       {table.minSeats}–{table.maxSeats} seats
-                                      {zoneName ? ` · ${zoneName}` : ""}
-                                      {!table.active ? " · inactive" : ""}
+                                      {zone ? ` · ${zone.name}` : ""}
+                                      {!table.active ? " · inactive table" : ""}
+                                      {zone && !zone.active ? " · inactive zone" : ""}
                                     </span>
                                   </span>
                                 </label>
@@ -634,7 +728,9 @@ export function RestaurantBookingsSection({
                     >
                       <option value="">No zone</option>
                       {zones.map((zone) => (
-                        <option key={zone.id} value={zone.id}>{zone.name}</option>
+                        <option key={zone.id} value={zone.id}>
+                          {zone.name}{zone.active ? "" : " (inactive)"}
+                        </option>
                       ))}
                     </select>
                   </div>

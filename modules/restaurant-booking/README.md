@@ -1,101 +1,85 @@
 # Restaurant Booking module
 
-This document is the source of truth for the Restaurant Booking product in `moduls-admin`.
+This is the source of truth for Restaurant Booking in `moduls-admin`.
 
-Its purpose is to prevent duplicate implementation work and to make it clear what already exists, where it lives, how the SaaS/tenant boundaries work, and what is still intentionally unfinished.
+The goal is simple: before adding Restaurant Booking code, check this file first so we do not rebuild database models, availability rules, APIs, table allocation or lifecycle logic that already exists.
 
-> Last verified against branch `fix/restaurant-catering-gating` on 2026-09-04.
+> Last verified against `fix/restaurant-catering-gating` on 2026-09-04.
 
 ## Product boundary
 
-Restaurant Booking is a separate paid product from Rental Booking.
+Restaurant Booking is its own SaaS product.
 
-Customer-facing product rules:
+- `RESTAURANT` = restaurant content/management module.
+- `RESTAURANT_BOOKING` = restaurant reservation product/add-on.
+- `RENTAL_BOOKING` = separate rental booking product.
+- `BOOKING` = shared internal technical booking engine. It is not a customer-facing product toggle.
 
-- `RESTAURANT` is the restaurant management/content module.
-- `RESTAURANT_BOOKING` is the Restaurant Booking add-on/product.
-- `RENTAL_BOOKING` is a different product and must never be enabled just because Restaurant Booking is enabled.
-- `BOOKING` is the shared internal booking engine. It is technical infrastructure and is not exposed as a customer-facing Super Admin product toggle.
-
-Restaurant Booking is considered enabled only when all three are available for the business:
-
-1. internal `BOOKING`
-2. `RESTAURANT`
-3. feature access `RESTAURANT_BOOKING`
-
-The main capability guards live in:
-
-- `modules/restaurant-booking/guards.ts`
-  - `requireRestaurantBooking()` for authenticated admin access
-  - `isRestaurantBookingEnabledForBusiness(businessId)` for server-side public capability checks
+Restaurant Booking requires the Restaurant module and the Restaurant Booking feature entitlement. Enabling Restaurant Booking must never enable Rental Booking.
 
 ## SaaS / tenant isolation
 
-Restaurant Booking is multi-tenant. Every restaurant-specific database model contains a `businessId` and reads/writes are scoped by that business.
+All Restaurant Booking data is tenant-owned by `businessId`.
 
-Admin flows do **not** trust a client-supplied `businessId`. The business is resolved from authenticated server access through `requireRestaurantBooking()`.
+Admin writes resolve the current business server-side through `requireRestaurantBooking()`.
 
-Sessionless/public flows also do **not** accept a client-supplied `businessId`. They use:
+Public/sessionless writes do **not** trust `businessId` from a browser request. Public tenant resolution is handled by:
 
 - `lib/public-tenant.ts`
 - `resolvePublicBusinessId()`
 
-Resolution order:
-
-1. configured `PUBLIC_BUSINESS_ID`
-2. otherwise the only business in the database, when exactly one exists
-3. otherwise no tenant is selected and the public operation fails safely
-
-Do not replace this with a `businessId` query parameter or request-body field.
+Never add a trusted client-controlled `businessId` to Restaurant Booking public APIs.
 
 ## Database / Prisma
 
-Restaurant-specific Prisma models are defined in:
+Restaurant-specific models live in:
 
 - `prisma/restaurant-booking.prisma`
 
-The generic booking lifecycle remains in the shared core `Booking` model. Restaurant-specific fields are stored separately.
+The shared core reservation record remains `Booking` in the main Prisma schema.
 
 ### `RestaurantBookingSettings`
 
 Table: `restaurant_booking_settings`
 
-One row per business (`businessId` is unique).
+One row per business.
 
-Current fields:
+Current settings:
 
-- `timezone`, default `Europe/Stockholm`
-- `slotIntervalMin`, default `30`
-- `defaultDurationMin`, default `120`
-- `turnaroundMin`, default `0`
-- `minLeadTimeMin`, default `60`
-- `bookingHorizonDays`, default `60`
-- `maxPartySize`, default `12`
+- `timezone`
+- `slotIntervalMin`
+- `defaultDurationMin`
+- `turnaroundMin`
+- `minLeadTimeMin`
+- `bookingHorizonDays`
+- `maxPartySize`
 - `confirmationMode`
   - `REQUEST`
   - `AUTO_CONFIRM`
-- `allowTableCombinations`, default `true`
+- `allowTableCombinations`
+
+Default timezone is `Europe/Stockholm`.
 
 ### `RestaurantServicePeriod`
 
 Table: `restaurant_service_periods`
 
-Defines recurring service/booking windows per weekday.
+Recurring bookable service windows.
 
-Current fields:
+Fields:
 
 - `businessId`
-- `weekday` (`0`–`6`)
+- `weekday`
 - `startMinute`
 - `endMinute`
 
-Current model does **not** have an `active` flag, name, or sort-order field. A service period is currently enabled by existing and disabled by deleting it.
+There is currently no `active` flag. A period is enabled by existing and disabled by deleting it.
 
 ### `RestaurantBlockedPeriod`
 
 Table: `restaurant_blocked_periods`
 
-Used for exceptions such as closed evenings, private events, holidays, etc.
+One-off closures/private events/blocked ranges.
 
 Fields:
 
@@ -108,7 +92,7 @@ Fields:
 
 Table: `restaurant_zones`
 
-Represents logical restaurant areas such as dining room, terrace, bar, etc.
+Examples: dining room, terrace, bar.
 
 Fields include:
 
@@ -116,8 +100,6 @@ Fields include:
 - `name`
 - `active`
 - `sortOrder`
-
-Zone names are unique per business.
 
 ### `RestaurantTable`
 
@@ -134,15 +116,13 @@ Fields include:
 - `active`
 - `sortOrder`
 
-Table names are unique per business.
-
-`combinationGroup` is used to define tables that are physically allowed to be combined.
+`combinationGroup` defines which tables may physically be joined.
 
 ### `RestaurantBookingDetail`
 
 Table: `restaurant_booking_details`
 
-Restaurant subtype for a shared core `Booking`.
+Restaurant-specific one-to-one subtype of the shared `Booking` row.
 
 Fields:
 
@@ -151,13 +131,13 @@ Fields:
 - optional `guestPhone`
 - `partySize`
 
-Generic booking fields such as guest name, guest email, start/end time, status and notes stay in the shared `Booking` model.
+Guest name, email, start/end, status and notes stay in the shared `Booking` model.
 
 ### `BookingTable`
 
 Table: `booking_tables`
 
-Links a restaurant booking detail to one or more restaurant tables.
+Connects one Restaurant Booking to one or more tables.
 
 Fields:
 
@@ -165,64 +145,236 @@ Fields:
 - `restaurantBookingId`
 - `tableId`
 
-There is a unique constraint on `(restaurantBookingId, tableId)`.
-
 ## Migrations already created
 
-Do not create replacement migrations for these features without first checking the existing migration history.
-
-Restaurant Booking related migrations currently include:
+Do not create replacement migrations for these without checking migration history first.
 
 - `prisma/migrations/20260904133000_add_restaurant_booking_backend/`
-  - initial restaurant booking settings, zones, tables, booking detail and table-link backend
 - `prisma/migrations/20260904160000_separate_rental_booking_product/`
-  - separates `RENTAL_BOOKING` from `RESTAURANT_BOOKING`
 - `prisma/migrations/20260904170000_add_restaurant_availability/`
-  - restaurant availability/service-period/blocked-period support and timezone
 
-Also related to the surrounding product structure:
+Related product migration:
 
 - `prisma/migrations/20260903000000_add_restaurant_project_type/`
 
-Always inspect the deployed Prisma migration state before applying or replacing migrations.
-
-## Module files
-
-Current server/domain implementation:
+## Module map
 
 ```text
 modules/restaurant-booking/
+├── README.md
 ├── actions.ts
 ├── availability.ts
+├── booking-slot.ts
 ├── components/
 │   └── restaurant-booking-widget.tsx
 ├── guards.ts
+├── lifecycle-actions.ts
 ├── public.ts
 ├── queries.ts
 ├── schedule-actions.ts
 ├── table-assignment.ts
 ├── time.ts
-├── types.ts
-└── README.md
+└── types.ts
 ```
 
-### `guards.ts`
+## Canonical capability guard
 
-Product and tenant access boundary.
+File:
 
-Do not bypass this file for admin Restaurant Booking writes.
+- `guards.ts`
 
-### `types.ts`
+Main functions:
 
-Shared Restaurant Booking types and defaults.
+- `requireRestaurantBooking()`
+- `isRestaurantBookingEnabledForBusiness(businessId)`
 
-Contains the canonical default booking settings used when a business has no explicit settings row.
+Do not bypass this boundary for Restaurant Booking admin writes.
 
-### `queries.ts`
+## Canonical availability engine
 
-Authenticated/admin read layer.
+File:
 
-Current exported reads:
+- `availability.ts`
+
+Main function:
+
+- `getRestaurantAvailabilityForBusiness({ businessId, date, partySize, now? })`
+
+Availability is calculated from current DB state on demand. There is no synchronization cron required.
+
+It considers:
+
+- timezone
+- service periods
+- slot interval
+- booking duration
+- lead time
+- booking horizon
+- blocked periods
+- max party size
+- active tables
+- active zones
+- existing active Restaurant Bookings
+- turnaround time
+- table assignments
+- table combinations
+
+Capacity-blocking statuses:
+
+- `PENDING`
+- `PAYMENT_PENDING`
+- `CONFIRMED`
+
+`DECLINED` and `CANCELLED` do not consume capacity.
+
+## Canonical transactional slot allocator
+
+File:
+
+- `booking-slot.ts`
+
+Main function:
+
+- `allocateRestaurantBookingSlot()`
+
+This is the canonical validator/allocator for a specific Restaurant Booking time.
+
+It is used by:
+
+- public booking creation
+- admin/manual booking creation
+- admin rescheduling
+- reactivation of cancelled/declined reservations
+
+It validates:
+
+- party size
+- public lead time and booking horizon
+- admin booking is not in the past
+- service-period membership
+- slot interval alignment
+- blocked periods
+- active tables
+- active zones
+- turnaround overlap
+- existing Restaurant Booking conflicts
+- usable existing table assignments
+- table capacity
+- table combinations
+
+Do **not** create another slot validation/allocation algorithm for Restaurant Booking.
+
+## Canonical automatic table selection
+
+File:
+
+- `table-assignment.ts`
+
+Function:
+
+- `chooseRestaurantTables()`
+
+Strategy:
+
+1. remove occupied tables
+2. prefer smallest fitting single table
+3. if needed and enabled, combine tables from the same `combinationGroup`
+4. prefer smallest total capacity
+5. for equal capacity, prefer fewer tables
+
+## Admin lifecycle actions
+
+File:
+
+- `lifecycle-actions.ts`
+
+Canonical admin lifecycle functions:
+
+### `createManagedRestaurantBooking()`
+
+Creates a manual admin reservation using the canonical slot allocator.
+
+It:
+
+- checks availability
+- validates service hours and blocked periods
+- automatically allocates table(s)
+- creates `Booking`
+- creates `RestaurantBookingDetail`
+- creates `BookingTable`
+- runs in a serializable transaction
+- creates the admin reservation as `CONFIRMED`
+
+The admin UI uses this action.
+
+### `rescheduleRestaurantBooking()`
+
+Atomic admin reschedule.
+
+It:
+
+- only moves an active reservation
+- excludes the reservation itself from conflict checks
+- validates the new time through the canonical allocator
+- updates start/end
+- replaces old table links with the newly allocated table(s)
+- runs in a serializable transaction
+
+### `setManagedRestaurantBookingStatus()`
+
+Supported managed statuses:
+
+- `PENDING`
+- `CONFIRMED`
+- `DECLINED`
+- `CANCELLED`
+
+Cancelling/declining immediately removes the reservation from future availability calculations.
+
+When an inactive booking is reactivated into a capacity-blocking status, the action first re-runs canonical capacity validation and reassigns valid table(s). A cancelled reservation therefore cannot simply overwrite a table that has since been booked by someone else.
+
+## Admin UI lifecycle integration
+
+Main UI:
+
+- `app/admin/_components/sections/bookings/restaurant-bookings.tsx`
+
+The Restaurant Booking admin now uses lifecycle-specific actions for:
+
+- manual booking creation
+- confirm
+- decline
+- cancel
+- reactivate
+- reschedule
+
+Rescheduling asks for a new date/time and the server automatically reallocates tables.
+
+Reactivation is exposed for `CANCELLED` and `DECLINED` bookings and performs a capacity recheck first.
+
+The UI still supports explicit manual table assignment through:
+
+- `setRestaurantBookingTables()`
+
+## Older admin write layer
+
+File:
+
+- `actions.ts`
+
+It still contains settings, zones, tables and explicit table-assignment actions.
+
+Important: `createRestaurantBooking()` in this file is an older manual-creation implementation. The current admin UI must use `createManagedRestaurantBooking()` from `lifecycle-actions.ts` instead.
+
+Do not build new UI against the older `createRestaurantBooking()` path. It should eventually be removed/deprecated after all references are confirmed gone.
+
+## Admin reads
+
+File:
+
+- `queries.ts`
+
+Main exports:
 
 - `getRestaurantBookingSettings()`
 - `getRestaurantServicePeriods()`
@@ -231,32 +383,15 @@ Current exported reads:
 - `getUnzonedRestaurantTables()`
 - `getRestaurantBookings()`
 
-All real-data queries are scoped to the authenticated `businessId`.
+All real-data queries are tenant-scoped.
 
-### `actions.ts`
+## Schedule / availability administration
 
-Authenticated/admin write layer.
+File:
 
-Current exported actions:
+- `schedule-actions.ts`
 
-- `saveRestaurantBookingSettings()`
-- `createRestaurantZone()`
-- `updateRestaurantZone()`
-- `createRestaurantTable()`
-- `updateRestaurantTable()`
-- `createRestaurantBooking()`
-- `setRestaurantBookingStatus()`
-- `setRestaurantBookingTables()`
-
-Writer actions require Restaurant Booking and OWNER/ADMIN access.
-
-Important distinction: `createRestaurantBooking()` is the current **admin manual booking** action. It creates a confirmed booking using the configured default duration, but it is not the same implementation as the safer public atomic booking flow. See Known limitations below.
-
-### `schedule-actions.ts`
-
-Authenticated/admin schedule and availability configuration.
-
-Current exports:
+Exports:
 
 - `saveRestaurantBookingTimezone()`
 - `createRestaurantServicePeriod()`
@@ -265,100 +400,25 @@ Current exports:
 - `deleteRestaurantBlockedPeriod()`
 - `previewRestaurantAvailability()`
 
-Service periods currently support create/delete, not an in-place update action.
+## Public server layer
 
-### `availability.ts`
+File:
 
-Availability engine.
-
-Main function:
-
-- `getRestaurantAvailabilityForBusiness({ businessId, date, partySize, now? })`
-
-It calculates possible slots from:
-
-- restaurant timezone
-- configured service periods
-- slot interval
-- default booking duration
-- lead time
-- booking horizon
-- blocked periods
-- max party size
-- active tables
-- existing active restaurant bookings
-- assigned tables
-- turnaround time
-- table combinations
-
-Statuses currently considered capacity-blocking:
-
-- `PENDING`
-- `PAYMENT_PENDING`
-- `CONFIRMED`
-
-`DECLINED` and `CANCELLED` therefore stop consuming capacity automatically on the next availability calculation.
-
-Availability is calculated on demand. There is no cron-based synchronization required between admin settings and available slots.
-
-### `table-assignment.ts`
-
-Canonical automatic table selector:
-
-- `chooseRestaurantTables()`
-
-Selection strategy:
-
-1. remove occupied tables
-2. prefer the smallest single table that fits `partySize`
-3. if no single table fits and combinations are enabled, only combine tables sharing the same non-null `combinationGroup`
-4. prefer the combination with the smallest total capacity
-5. when capacities are equal, prefer fewer tables
-
-Do not implement a second public table-selection algorithm elsewhere. Public booking creation should use this helper so availability and assignment do not drift into competing definitions of reality.
-
-### `time.ts`
-
-Timezone/date helpers used by the public booking transaction.
-
-Contains shared helpers for timezone-safe local/UTC conversion and date calculations.
-
-### `public.ts`
-
-Sessionless/public server layer.
+- `public.ts`
 
 Exports:
 
 - `getPublicRestaurantAvailability()`
 - `createPublicRestaurantBooking()`
 
-Public booking creation:
+Public booking creation uses the same canonical transactional allocator as the admin lifecycle.
 
-- resolves tenant server-side
-- checks Restaurant Booking entitlement
-- validates party size and requested time
-- checks lead time and booking horizon
-- verifies the selected time belongs to a service-period slot
-- rejects blocked periods
-- re-reads active capacity inside the transaction
-- applies turnaround rules
-- automatically selects table(s)
-- creates `Booking`
-- creates `RestaurantBookingDetail`
-- creates `BookingTable` links
-- uses a Prisma `Serializable` transaction
-- retries Prisma `P2034` serialization/write-conflict failures up to three attempts
-
-Confirmation result:
+Confirmation behavior:
 
 - `REQUEST` → `PENDING`
 - `AUTO_CONFIRM` → `CONFIRMED`
 
-This atomic public flow is the safe base for real guest bookings.
-
 ## Public API routes
-
-These routes exist in `moduls-admin`. They do not create a customer-facing page by themselves.
 
 ### Availability
 
@@ -369,17 +429,6 @@ GET /api/public/restaurant-booking/availability?date=YYYY-MM-DD&partySize=2
 File:
 
 - `app/api/public/restaurant-booking/availability/route.ts`
-
-Input:
-
-- `date`: required `YYYY-MM-DD`
-- `partySize`: required positive integer
-
-Behavior:
-
-- returns `400` for invalid input
-- returns `404` when a safe public tenant cannot be configured/resolved
-- returns availability with `Cache-Control: no-store`
 
 ### Create booking
 
@@ -392,7 +441,7 @@ File:
 
 - `app/api/public/restaurant-booking/book/route.ts`
 
-Current body:
+Current request body:
 
 ```json
 {
@@ -405,250 +454,168 @@ Current body:
 }
 ```
 
-Success:
+The public request body must not contain a trusted `businessId`.
 
-- HTTP `201`
-- returns `ok: true`, `bookingId`, and status (`PENDING` or `CONFIRMED`)
+## Reusable public booking component
 
-Known booking/business conflicts currently return HTTP `409` with an error message.
+File:
 
-The request body must never be extended with a trusted client-controlled `businessId`. Public tenant resolution remains server-side.
+- `components/restaurant-booking-widget.tsx`
 
-## Reusable booking widget
+Component:
 
-Reusable customer-flow component:
+- `RestaurantBookingWidget`
 
-- `modules/restaurant-booking/components/restaurant-booking-widget.tsx`
-- component: `RestaurantBookingWidget`
-
-It is intentionally adapter-based and does not hard-code an API implementation.
-
-Main props:
+Adapter contract:
 
 ```ts
 {
-  title?: string;
-  subtitle?: string;
-  maxPartySize?: number;
   loadAvailability: ({ date, partySize }) => Promise<RestaurantBookingAvailability>;
   submitBooking: (input) => Promise<RestaurantBookingSubmitResult>;
 }
 ```
 
-Current UX states/features:
+Current UX includes:
 
-- guest count selector
-- date selection
-- availability loading state
-- available time selection
-- empty / fully booked state
-- error state
-- manual availability refresh
-- guest name
-- guest phone
-- guest email
-- optional special request
-- reservation summary
-- booking submit/loading state
-- `PENDING` success state
-- `CONFIRMED` success state
-- responsive/mobile layout
-
-The adapter boundary exists specifically so a customer repo can later provide real API calls without rebuilding the UI component.
+- guest count
+- date
+- loading
+- available times
+- fully booked state
+- errors
+- contact details
+- special request
+- summary
+- submit state
+- pending/confirmed result
+- mobile layout
 
 ## Private Super Admin preview
 
-Private preview route:
+Route:
 
 ```text
 /admin/super/restaurant-booking-demo
 ```
 
-Files:
-
-- `app/admin/super/restaurant-booking-demo/page.tsx`
-- `app/admin/super/restaurant-booking-demo/_components/restaurant-booking-demo.tsx`
-
-The entire `/admin/super` segment is protected by Super Admin authentication.
-
 The preview:
 
-- renders the reusable `RestaurantBookingWidget`
+- is Super Admin protected
+- renders the reusable public widget
 - uses mock availability
-- uses a mock submit adapter
-- does **not** create database bookings
-- exists only to review customer-facing UX/design
+- uses mock submit
+- does not write bookings to DB
 
-There is also a link from Super Admin → Modules to open this preview.
+## Rental Booking separation
 
-Do not confuse this preview with the real public API flow.
+Rental Booking and Restaurant Booking must not mutate each other's subtype bookings.
 
-## Admin UI
+Rental action wrappers contain Restaurant Booking guards before rental status/delete operations.
 
-Restaurant Booking admin UI currently lives mainly in:
+Never remove these domain boundaries just because both products share the core `Booking` table.
 
-- `app/admin/_components/sections/bookings/restaurant-bookings.tsx`
-- `app/admin/_components/sections/bookings/restaurant-booking-product.tsx`
-- `app/admin/_components/sections/bookings/restaurant-availability-admin.tsx`
-- `app/admin/_components/sections/bookings/bookings-hub.tsx`
+## What is finished
 
-The booking product separates Restaurant Booking from Rental Booking. When both products are active, the booking hub can expose both domains. Enabling one booking product must not implicitly expose the other.
-
-## Automatic synchronization behavior
-
-There is no separate synchronization worker for Restaurant Booking availability.
-
-When an availability request is made, the engine reads the current database state. Therefore changes to these records affect subsequent availability calculations automatically:
-
+- SaaS tenant scoping
+- product separation
+- Restaurant Booking DB models
 - settings
-- timezone
+- zones
+- tables
 - service periods
 - blocked periods
-- active tables
-- table capacities
-- table combination groups
-- existing blocking bookings
-- table assignments
+- availability calculation
+- automatic table allocation
+- public availability API
+- public create-booking API
+- serializable public creation
+- reusable public widget
+- private Super Admin preview
+- canonical shared slot allocator
+- safe admin manual booking creation
+- safe admin cancellation/decline
+- capacity-safe admin reactivation
+- atomic admin rescheduling
+- admin lifecycle UI integration
 
-Example: changing a booking to `CANCELLED` removes it from the list of capacity-blocking statuses, so its table capacity becomes available again on the next availability calculation.
+## Known remaining work
 
-Existing bookings are not automatically deleted or rewritten merely because an admin later changes service periods, table configuration, or other availability rules. Existing reservation conflicts must be handled intentionally rather than silently destroying guest bookings.
+### Public customer-site integration
 
-## Known limitations / intentionally unfinished
+The real customer page is intentionally not implemented in `moduls-admin`.
 
-Check this section before creating a new feature. These are known gaps, not forgotten duplicate tasks.
+A customer repo such as `lerustique` should render `RestaurantBookingWidget` and connect its adapters to the real APIs.
 
-### 1. Customer public-page integration is NOT done
+### Public cancellation
 
-`moduls-admin` has the backend API and reusable widget, but no real customer-facing page has been created here.
+Not implemented yet.
 
-The intended architecture is for a customer site/repo, for example `lerustique`, to render the widget and connect its adapters to the real booking endpoints. Do not turn `moduls-admin` into the public restaurant site.
+Needs a secure guest token/link and public cancellation endpoint.
 
-### 2. Public cancellation is NOT implemented
+### Public rescheduling
 
-There is no guest cancellation token/link or public cancellation API yet.
+Not implemented yet.
 
-Admin can set Restaurant Booking status to `CANCELLED`, but guests cannot currently cancel securely themselves.
+Should reuse the canonical allocator and require secure guest authorization.
 
-### 3. Rescheduling is NOT implemented
+### Notifications
 
-There is no atomic `rescheduleRestaurantBooking()` flow yet.
+Still needed for the complete Restaurant Booking lifecycle:
 
-A correct reschedule implementation must re-check availability and allocate tables atomically for the new time before moving the reservation.
+- booking request received
+- admin/new reservation notification
+- confirmed
+- declined
+- cancelled
+- rescheduled
 
-### 4. Re-confirming cancelled/declined bookings needs hardening
+### Existing-booking conflict remediation
 
-`setRestaurantBookingStatus()` can change status, but restoring an inactive booking to a capacity-blocking status does not currently perform the same full atomic capacity re-check as public booking creation.
+If admin changes service windows or disables inventory that affects an already active future booking, the system should provide a dedicated warning/remediation workflow rather than silently changing or deleting the guest reservation.
 
-Do not build UI that casually restores a cancelled booking to `CONFIRMED` until this is hardened.
+The canonical allocator already fails closed when an overlapping active booking references unusable table inventory.
 
-### 5. Admin manual booking is not yet unified with the public allocator
+### Manual table-assignment hardening
 
-`createRestaurantBooking()` in `actions.ts` is an admin/manual flow. It currently creates a confirmed booking with the configured duration but is not the same transaction/availability/auto-table-allocation flow as `createPublicRestaurantBooking()`.
+The explicit `setRestaurantBookingTables()` path is separate from the automatic allocator. It already validates capacity and time conflicts, but it should continue to be reviewed so table and zone activity rules remain identical to automatic allocation.
 
-Before production-grade manual booking, either:
+### Legacy manual create cleanup
 
-- route admin creation through the same safe allocator, or
-- make an explicit admin override mode with clear conflict semantics.
+`actions.ts:createRestaurantBooking()` is no longer the intended admin creation path. Remove/deprecate it after confirming no external call sites remain.
 
-Do not create a third booking-creation implementation.
+### Tests
 
-### 6. Existing-booking conflict warnings are NOT implemented
+Production test coverage should include:
 
-If admin changes service periods, closes a time, disables a table/zone, or otherwise makes existing future reservations conflict with the new configuration, the system does not yet provide a dedicated conflict-warning/remediation workflow.
-
-Existing reservations should not be silently deleted.
-
-### 7. Service periods currently have create/delete only
-
-The current Prisma model has no `active` flag and the current server actions expose create/delete rather than update/toggle.
-
-Do not assume service periods support enable/disable unless the schema/actions are changed deliberately.
-
-### 8. Zone activity is not a complete availability rule yet
-
-Tables themselves have `active` and availability uses active tables. A zone also has an `active` field, but zone activity is not currently a fully enforced public availability boundary in all paths.
-
-If zone disabling is intended to remove all tables in that zone from public availability, harden this deliberately rather than adding another parallel filter somewhere else.
-
-### 9. Email notifications are NOT implemented
-
-Still needed later:
-
-- guest request received
-- guest confirmed
-- guest declined
-- guest cancelled
-- restaurant/admin notification
-- reschedule notifications
-
-### 10. Floor plan is NOT implemented
-
-Future floor-plan work is presentation/admin-assignment tooling. It must reuse the existing table records and must not become a second availability source of truth.
-
-### 11. End-to-end booking tests are still needed
-
-Important scenarios include:
-
-- service period boundaries
+- simultaneous booking attempts
+- full restaurant
 - blocked periods
-- max party size
-- no capacity
-- table combinations
 - turnaround
-- simultaneous/concurrent booking attempts
-- REQUEST vs AUTO_CONFIRM
+- single table
+- table combinations
+- inactive zone
+- inactive table
 - cancellation freeing capacity
-- timezone/DST transitions
+- reactivation after capacity was taken
+- reschedule conflicts
+- timezone/DST
 - feature disabled
-- multi-tenant isolation
+- tenant A cannot touch tenant B
 
-## Rules for future development
+### Floor plan
 
-Before adding Restaurant Booking code:
+Drag/drop floor plan is intentionally later work.
 
-1. Read this README.
-2. Check the existing files in `modules/restaurant-booking/`.
-3. Reuse `requireRestaurantBooking()` for authenticated tenant/product gating.
-4. Reuse `resolvePublicBusinessId()` for sessionless public tenant resolution.
-5. Reuse the availability engine instead of implementing slot rules in a UI component.
-6. Reuse `chooseRestaurantTables()` instead of creating another table allocator.
-7. Keep public booking creation atomic and concurrency-safe.
-8. Keep Restaurant Booking and Rental Booking product entitlements separate.
-9. Never accept a trusted `businessId` from a public/client request.
-10. Update this README when adding/removing DB models, migrations, API routes, actions, components, or lifecycle behavior.
+It may store table positions/rotation/shape and zone layout, but the floor plan must never become the source of truth for availability. `RestaurantTable`, bookings and the allocator remain authoritative.
 
-## Current architecture summary
+## Rules for future implementation
 
-```text
-Customer site / future public integration
-        │
-        │  widget adapters
-        ▼
-RestaurantBookingWidget
-        │
-        ├── GET /api/public/restaurant-booking/availability
-        │       └── getPublicRestaurantAvailability()
-        │               └── getRestaurantAvailabilityForBusiness()
-        │
-        └── POST /api/public/restaurant-booking/book
-                └── createPublicRestaurantBooking()
-                        ├── tenant/product checks
-                        ├── availability rules
-                        ├── chooseRestaurantTables()
-                        └── Serializable transaction
-                                ├── Booking
-                                ├── RestaurantBookingDetail
-                                └── BookingTable
-
-Admin
-  └── requireRestaurantBooking()
-        ├── queries.ts
-        ├── actions.ts
-        └── schedule-actions.ts
-
-Shared SaaS database
-  └── all restaurant-specific rows scoped by businessId
-```
-
-The database and domain engine are the source of truth. Public/customer UI should consume them rather than reimplementing booking rules client-side.
+1. Check this README before adding Restaurant Booking code.
+2. Never trust client `businessId`.
+3. Use `requireRestaurantBooking()` for admin Restaurant Booking access.
+4. Use `allocateRestaurantBookingSlot()` for creation, reschedule and reactivation capacity decisions.
+5. Use `chooseRestaurantTables()` rather than creating another table-selection algorithm.
+6. Do not couple Restaurant Booking and Rental Booking product enablement.
+7. Do not silently rewrite/delete existing reservations when configuration changes.
+8. Keep the public customer page in the customer repo, not inside `moduls-admin`.
+9. Update this README when the architecture changes.
