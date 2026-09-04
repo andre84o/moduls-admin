@@ -18,9 +18,15 @@ import type {
   AdminGoogleReviewSettings,
   AdminCachedGoogleReviews,
 } from "@/modules/website/google-reviews/queries";
+import type {
+  AdminRestaurantBooking,
+  AdminRestaurantTable,
+  AdminRestaurantZone,
+  RestaurantBookingSettingsInput,
+} from "@/modules/restaurant-booking/types";
 import { isRestaurantSectionType, isCateringSectionType } from "@/modules/restaurant/section-types";
 import { PropertiesSection } from "./sections/properties";
-import { BookingsSection } from "./sections/bookings";
+import { BookingsHub } from "./sections/bookings/bookings-hub";
 import { CustomersSection } from "./sections/customers";
 import { WebsiteSection } from "./sections/website";
 import { GoogleReviewsSettings } from "./sections/google-reviews";
@@ -36,6 +42,11 @@ export function AdminShell({
   googleReviewsConfigured,
   googleReviewsAddOnEnabled,
   cateringAddOnEnabled,
+  restaurantBookingEnabled,
+  restaurantBookingSettings,
+  restaurantZones,
+  unzonedRestaurantTables,
+  restaurantBookings,
   businesses,
   activeBusinessId,
   enabledModules,
@@ -50,6 +61,11 @@ export function AdminShell({
   googleReviewsConfigured: boolean;
   googleReviewsAddOnEnabled: boolean;
   cateringAddOnEnabled: boolean;
+  restaurantBookingEnabled: boolean;
+  restaurantBookingSettings: RestaurantBookingSettingsInput;
+  restaurantZones: AdminRestaurantZone[];
+  unzonedRestaurantTables: AdminRestaurantTable[];
+  restaurantBookings: AdminRestaurantBooking[];
   businesses: BusinessOption[];
   activeBusinessId: string | null;
   enabledModules: string[];
@@ -64,13 +80,10 @@ export function AdminShell({
     router.replace(`/admin?tab=${id}`, { scroll: false });
   }, [router]);
 
-  // Sidebar has two states: fully open or fully closed. Toggled from the header.
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const sidebarRef = useRef<HTMLElement>(null);
   const headerRef = useRef<HTMLElement>(null);
 
-  // While open, a click anywhere outside the sidebar (and outside the header,
-  // so the toggle button keeps working) closes it.
   useEffect(() => {
     if (!sidebarOpen) return;
     function onPointerDown(event: MouseEvent) {
@@ -98,13 +111,8 @@ export function AdminShell({
     ? active
     : "website";
 
-  // SUPER_ADMIN on any business grants access to platform tools. Cosmetic only —
-  // the page + actions are guarded server-side by requireSuperAdmin.
   const isSuperAdmin = businesses.some((b) => b.role === "SUPER_ADMIN");
 
-  // Split pages by section type so the Website tab and Restaurant tab each show
-  // only their own content. Pages that contain both kinds are split safely —
-  // sections are filtered per tab, the underlying data is never duplicated.
   const genericPages = websitePages
     .map((p) => ({ ...p, sections: p.sections.filter((s) => !isRestaurantSectionType(s.type)) }))
     .filter((p) => p.sections.length > 0);
@@ -122,7 +130,6 @@ export function AdminShell({
 
   return (
     <div className="flex h-screen flex-col bg-muted/30">
-      {/* Header — full width, on top. Sidebar starts below it. */}
       <header
         ref={headerRef}
         className="flex h-14 shrink-0 items-center gap-3 border-b bg-background px-4"
@@ -140,11 +147,7 @@ export function AdminShell({
         </span>
       </header>
 
-      {/* Below the header: collapsible sidebar + main content. */}
       <div className="flex min-h-0 flex-1">
-        {/* The sidebar stays mounted and animates its width via CSS (compositor-
-            friendly, no JS per frame, no extra bundle). The inner wrapper keeps a
-            fixed width so content is clipped rather than reflowed while sliding. */}
         <aside
           ref={sidebarRef}
           aria-hidden={!sidebarOpen}
@@ -170,7 +173,16 @@ export function AdminShell({
               <PropertiesSection properties={properties} />
             )}
             {effectiveActive === "bookings" && (
-              <BookingsSection bookings={bookings} properties={properties} />
+              <BookingsHub
+                bookings={bookings}
+                properties={properties}
+                rentalEnabled={enabledModules.includes("RENTAL")}
+                restaurantBookingEnabled={restaurantBookingEnabled}
+                restaurantBookingSettings={restaurantBookingSettings}
+                restaurantZones={restaurantZones}
+                unzonedRestaurantTables={unzonedRestaurantTables}
+                restaurantBookings={restaurantBookings}
+              />
             )}
             {effectiveActive === "customers" && (
               <CustomersSection customers={customers} />

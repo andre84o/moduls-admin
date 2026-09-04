@@ -10,6 +10,19 @@ import {
   isGoogleReviewsAddOnEnabled,
 } from "@/modules/website/google-reviews/queries";
 import { isCateringAddOnEnabled } from "@/modules/restaurant/queries";
+import {
+  getRestaurantBookingSettings,
+  getRestaurantZonesWithTables,
+  getUnzonedRestaurantTables,
+  getRestaurantBookings,
+} from "@/modules/restaurant-booking/queries";
+import { isRestaurantBookingEnabledForBusiness } from "@/modules/restaurant-booking/guards";
+import {
+  DEFAULT_RESTAURANT_BOOKING_SETTINGS,
+  type AdminRestaurantBooking,
+  type AdminRestaurantTable,
+  type AdminRestaurantZone,
+} from "@/modules/restaurant-booking/types";
 import { isGoogleReviewsConfigured } from "@/lib/config";
 import { listSwitchableBusinesses, getActiveBusinessId } from "@/lib/auth";
 import { getEnabledModules } from "@/lib/modules";
@@ -19,7 +32,6 @@ import {
   type AdminSectionId,
 } from "./_components/admin-sections";
 
-/** Coerce the ?tab= query into a known section id (defaults to website). */
 function tabToSection(tab: string | undefined): AdminSectionId {
   const match = ADMIN_SECTIONS.find((s) => s.id === tab);
   return match ? match.id : "website";
@@ -31,9 +43,7 @@ export default async function AdminPage({
   searchParams: Promise<{ tab?: string }>;
 }) {
   const initialSection = tabToSection((await searchParams).tab);
-  // Each query verifies the session and scopes by the active businessId.
-  // getWebsitePagesWithSections is itself gated by the WEBSITE module and
-  // returns [] when it is disabled, so loading it here never leaks content.
+
   const [
     properties,
     bookings,
@@ -60,13 +70,47 @@ export default async function AdminPage({
     getEnabledModules(),
   ]);
 
-  // Server-side env check — the API key value is never sent to the client.
+  const restaurantBookingEnabled = activeId
+    ? await isRestaurantBookingEnabledForBusiness(activeId)
+    : false;
+
+  let restaurantBookingSettings = DEFAULT_RESTAURANT_BOOKING_SETTINGS;
+  let restaurantZones: AdminRestaurantZone[] = [];
+  let unzonedRestaurantTables: AdminRestaurantTable[] = [];
+  let restaurantBookings: AdminRestaurantBooking[] = [];
+
+  if (restaurantBookingEnabled) {
+    const [settings, zones, unzoned, restaurantRows] = await Promise.all([
+      getRestaurantBookingSettings(),
+      getRestaurantZonesWithTables(),
+      getUnzonedRestaurantTables(),
+      getRestaurantBookings(),
+    ]);
+
+    restaurantBookingSettings = settings;
+    restaurantZones = zones.map((zone) => ({
+      ...zone,
+      tables: zone.tables.map((table) => ({ ...table, zoneId: zone.id })),
+    }));
+    unzonedRestaurantTables = unzoned.map((table) => ({ ...table, zoneId: null }));
+    restaurantBookings = restaurantRows.map((booking) => ({
+      ...booking,
+      startAt: booking.startAt.toISOString(),
+      endAt: booking.endAt.toISOString(),
+    }));
+  }
+
+  const restaurantBookingIds = new Set(restaurantBookings.map((booking) => booking.id));
+  const nonRestaurantBookings = restaurantBookingEnabled
+    ? bookings.filter((booking) => !restaurantBookingIds.has(booking.id))
+    : bookings;
+
   const googleReviewsConfigured = isGoogleReviewsConfigured();
 
   return (
     <AdminShell
       properties={properties}
-      bookings={bookings}
+      bookings={nonRestaurantBookings}
       customers={customers}
       websitePages={websitePages}
       googleReviewSettings={googleReviewSettings}
@@ -74,6 +118,11 @@ export default async function AdminPage({
       googleReviewsConfigured={googleReviewsConfigured}
       googleReviewsAddOnEnabled={googleReviewsAddOnEnabled}
       cateringAddOnEnabled={cateringAddOnEnabled}
+      restaurantBookingEnabled={restaurantBookingEnabled}
+      restaurantBookingSettings={restaurantBookingSettings}
+      restaurantZones={restaurantZones}
+      unzonedRestaurantTables={unzonedRestaurantTables}
+      restaurantBookings={restaurantBookings}
       businesses={businesses.map((b) => ({ id: b.id, name: b.name, role: b.role }))}
       activeBusinessId={activeId}
       enabledModules={Array.from(enabledModules)}

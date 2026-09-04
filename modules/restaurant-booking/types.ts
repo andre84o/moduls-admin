@@ -31,3 +31,50 @@ export type RestaurantTableInput = {
   active?: boolean;
   sortOrder?: number;
 };
+
+export type AdminRestaurantTable = {
+  id: string;
+  name: string;
+  zoneId: string | null;
+  minSeats: number;
+  maxSeats: number;
+  combinationGroup: string | null;
+  active: boolean;
+  sortOrder: number;
+};
+
+export type AdminRestaurantZone = {
+  id: string;
+  name: string;
+  active: boolean;
+  sortOrder: number;
+  tables: AdminRestaurantTable[];
+};
+
+export type AdminRestaurantBookingStatus =
+  | "PENDING"
+  | "PAYMENT_PENDING"
+  | "CONFIRMED"
+  | "DECLINED"
+  | "CANCELLED"
+  | "EXPIRED"
+  | "REFUNDED";
+
+export type AdminRestaurantBooking = {
+  id: string;
+  guestName: string;
+  guestEmail: string | null;
+  guestPhone: string | null;
+  partySize: number;
+  startAt: string;
+  endAt: string;
+  status: AdminRestaurantBookingStatus;
+  notes: string | null;
+  tables: Array<{
+    id: string;
+    name: string;
+    minSeats: number;
+    maxSeats: number;
+    zone: { id: string; name: string } | null;
+  }>;
+};
