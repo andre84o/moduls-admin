@@ -33,6 +33,11 @@ import type {
 type View = "overview" | "bookings" | "tables" | "settings";
 type Feedback = { kind: "success" | "error"; text: string } | null;
 
+type GuestActivity = {
+  type: "CANCELLED" | "RESCHEDULED";
+  at: string;
+};
+
 const ACTIVE_STATUSES = new Set<AdminRestaurantBookingStatus>([
   "PENDING",
   "PAYMENT_PENDING",
@@ -455,6 +460,9 @@ export function RestaurantBookingsSection({
                 const badge = statusBadge[booking.status];
                 const selected = selectedTables[booking.id] ?? [];
                 const inactive = !ACTIVE_STATUSES.has(booking.status);
+                const guestActivity = (
+                  booking as AdminRestaurantBooking & { guestActivity?: GuestActivity | null }
+                ).guestActivity;
                 const currentTable = booking.tables.length > 0
                   ? booking.tables.map((table) => table.name).join(", ")
                   : "No table";
@@ -472,6 +480,18 @@ export function RestaurantBookingsSection({
                         <p className="mt-1 truncate text-xs text-muted-foreground">
                           {booking.guestPhone ?? "No phone"} · {booking.guestEmail ?? "No email"}
                         </p>
+                        {guestActivity && (
+                          <p className="mt-1 text-xs font-medium">
+                            {guestActivity.type === "CANCELLED"
+                              ? "Cancelled by guest"
+                              : "Rescheduled by guest"}
+                            {" · "}
+                            {fmtDateTime(
+                              guestActivity.at,
+                              settings.timezone ?? "Europe/Stockholm",
+                            )}
+                          </p>
+                        )}
                       </div>
                       <div className="flex shrink-0 flex-wrap items-center gap-2">
                         {booking.status === "PENDING" && (
