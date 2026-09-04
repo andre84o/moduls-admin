@@ -88,13 +88,14 @@ model RestaurantTable {
 }
 
 model RestaurantBookingDetail {
-  id         String   @id @default(cuid())
-  businessId String
-  bookingId  String   @unique
-  guestPhone String?
-  partySize  Int
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id              String   @id @default(cuid())
+  businessId      String
+  bookingId       String   @unique
+  guestPhone      String?
+  partySize       Int
+  managementToken String?  @unique
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   tables BookingTable[]
 

@@ -4,6 +4,10 @@ import { getPrisma } from "@/lib/prisma";
 import { sendNotification } from "@/lib/email";
 import { DEFAULT_RESTAURANT_BOOKING_SETTINGS } from "./types";
 import { safeTimezone } from "./time";
+import {
+  ensureRestaurantBookingManagementToken,
+  restaurantBookingManagementUrl,
+} from "./management-access";
 
 export type RestaurantBookingNotificationEvent =
   | "CREATED"
@@ -36,32 +40,39 @@ function formatWhen(startAt: Date, endAt: Date, timezone: string) {
   return `${formatter.format(startAt)} – ${formatter.format(endAt)}`;
 }
 
+function manageBookingHtml(url: string | null) {
+  if (!url) return "";
+  return `<p><a href="${escapeHtml(url)}">Manage booking</a></p>`;
+}
+
 function guestCopy(input: {
   event: RestaurantBookingNotificationEvent;
   businessName: string;
   status: string;
   when: string;
   partySize: number;
+  manageUrl: string | null;
 }) {
   const businessName = escapeHtml(input.businessName);
   const when = escapeHtml(input.when);
+  const manage = manageBookingHtml(input.manageUrl);
 
   switch (input.event) {
     case "CREATED":
       if (input.status === "CONFIRMED") {
         return {
           subject: `Your reservation at ${input.businessName} is confirmed`,
-          html: `<p>Your reservation at <strong>${businessName}</strong> is confirmed.</p><p>${when}<br/>Guests: ${input.partySize}</p>`,
+          html: `<p>Your reservation at <strong>${businessName}</strong> is confirmed.</p><p>${when}<br/>Guests: ${input.partySize}</p>${manage}`,
         };
       }
       return {
         subject: `We received your reservation request at ${input.businessName}`,
-        html: `<p>We have received your reservation request for <strong>${businessName}</strong>.</p><p>${when}<br/>Guests: ${input.partySize}</p><p>The restaurant will confirm your request shortly.</p>`,
+        html: `<p>We have received your reservation request for <strong>${businessName}</strong>.</p><p>${when}<br/>Guests: ${input.partySize}</p><p>The restaurant will confirm your request shortly.</p>${manage}`,
       };
     case "CONFIRMED":
       return {
         subject: `Your reservation at ${input.businessName} is confirmed`,
-        html: `<p>Your reservation at <strong>${businessName}</strong> is confirmed.</p><p>${when}<br/>Guests: ${input.partySize}</p>`,
+        html: `<p>Your reservation at <strong>${businessName}</strong> is confirmed.</p><p>${when}<br/>Guests: ${input.partySize}</p>${manage}`,
       };
     case "DECLINED":
       return {
@@ -76,12 +87,12 @@ function guestCopy(input: {
     case "RESCHEDULED":
       return {
         subject: `Your reservation at ${input.businessName} was rescheduled`,
-        html: `<p>Your reservation at <strong>${businessName}</strong> has a new time.</p><p>${when}<br/>Guests: ${input.partySize}</p>`,
+        html: `<p>Your reservation at <strong>${businessName}</strong> has a new time.</p><p>${when}<br/>Guests: ${input.partySize}</p>${manage}`,
       };
     case "REACTIVATED":
       return {
         subject: `Your reservation at ${input.businessName} is active again`,
-        html: `<p>Your reservation at <strong>${businessName}</strong> is active again.</p><p>${when}<br/>Guests: ${input.partySize}</p>`,
+        html: `<p>Your reservation at <strong>${businessName}</strong> is active again.</p><p>${when}<br/>Guests: ${input.partySize}</p>${manage}`,
       };
   }
 }
@@ -130,7 +141,7 @@ export async function notifyRestaurantBookingEvent(input: {
     const [business, booking, detail, settings] = await Promise.all([
       prisma.business.findUnique({
         where: { id: input.businessId },
-        select: { name: true, email: true },
+        select: { name: true, email: true, website: true },
       }),
       prisma.booking.findFirst({
         where: { id: input.bookingId, businessId: input.businessId },
@@ -159,12 +170,23 @@ export async function notifyRestaurantBookingEvent(input: {
     const when = formatWhen(booking.startAt, booking.endAt, timezone);
 
     if (booking.guestEmail) {
+      const includeManageLink = ["CREATED", "CONFIRMED", "RESCHEDULED", "REACTIVATED"].includes(input.event);
+      const token = includeManageLink
+        ? await ensureRestaurantBookingManagementToken({
+            businessId: input.businessId,
+            bookingId: input.bookingId,
+          })
+        : null;
+      const manageUrl = token
+        ? restaurantBookingManagementUrl(token, business.website)
+        : null;
       const copy = guestCopy({
         event: input.event,
         businessName: business.name,
         status: booking.status,
         when,
         partySize: detail.partySize,
+        manageUrl,
       });
       await sendNotification({
         businessId: input.businessId,

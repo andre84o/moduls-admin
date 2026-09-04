@@ -67,6 +67,7 @@ export async function getRestaurantAvailabilityForBusiness(input: {
   businessId: string;
   date: string;
   partySize: number;
+  excludeBookingId?: string | null;
   now?: Date;
 }): Promise<RestaurantAvailabilityResult> {
   const businessId = input.businessId.trim();
@@ -150,7 +151,9 @@ export async function getRestaurantAvailabilityForBusiness(input: {
     ? await prisma.booking.findMany({
         where: {
           businessId,
-          id: { in: bookingIds },
+          id: input.excludeBookingId
+            ? { in: bookingIds, not: input.excludeBookingId }
+            : { in: bookingIds },
           status: { in: [...ACTIVE_STATUSES] },
           startAt: { lt: addMinutes(dayEnd, settings.turnaroundMin) },
           endAt: { gt: addMinutes(dayStart, -settings.turnaroundMin) },
