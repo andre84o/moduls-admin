@@ -88,10 +88,14 @@ export function RestaurantBookingWidget({
     [selectedStartAt, availability?.timezone],
   );
 
-  async function refreshAvailability(nextDate = date, nextPartySize = partySize) {
+  async function refreshAvailability(
+    nextDate = date,
+    nextPartySize = partySize,
+    options: { preserveError?: boolean } = {},
+  ) {
     if (!nextDate) return;
     setLoadingAvailability(true);
-    setError(null);
+    if (!options.preserveError) setError(null);
     setSelectedStartAt(null);
     try {
       const next = await loadAvailability({ date: nextDate, partySize: nextPartySize });
@@ -122,7 +126,7 @@ export function RestaurantBookingWidget({
     } catch {
       setError("That time is no longer available. Please choose another time.");
       setStep("search");
-      await refreshAvailability();
+      await refreshAvailability(date, partySize, { preserveError: true });
     } finally {
       setSubmitting(false);
     }
