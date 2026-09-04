@@ -12,7 +12,6 @@ import {
   deleteRestaurantBlockedPeriodSafely,
   deleteRestaurantServicePeriodSafely,
   previewRestaurantAvailabilitySafely,
-  saveRestaurantBookingTimezoneSafely,
 } from "@/modules/restaurant-booking/configuration-actions";
 import type {
   AdminRestaurantBlockedPeriod,
@@ -44,11 +43,9 @@ function formatSlot(value: string, timezone: string) {
 }
 
 export function RestaurantAvailabilityAdmin({
-  timezone,
   servicePeriods,
   blockedPeriods,
 }: {
-  timezone: string;
   servicePeriods: AdminRestaurantServicePeriod[];
   blockedPeriods: AdminRestaurantBlockedPeriod[];
 }) {
@@ -81,22 +78,6 @@ export function RestaurantAvailabilityAdmin({
           {feedback.text}
         </div>
       )}
-
-      <Card>
-        <CardHeader><CardTitle>Timezone</CardTitle></CardHeader>
-        <CardContent>
-          <form
-            action={(formData) => run(() => saveRestaurantBookingTimezoneSafely(String(formData.get("timezone") ?? "")), "Timezone saved.")}
-            className="flex flex-col gap-3 sm:flex-row sm:items-end"
-          >
-            <div className="flex-1">
-              <Label>Restaurant timezone</Label>
-              <Input name="timezone" defaultValue={timezone} placeholder="Europe/Stockholm" className="mt-1.5" />
-            </div>
-            <Button type="submit" disabled={isPending}>Save</Button>
-          </form>
-        </CardContent>
-      </Card>
 
       <Card>
         <CardHeader><CardTitle>Service hours</CardTitle></CardHeader>
@@ -228,7 +209,6 @@ export function RestaurantAvailabilityAdmin({
 
           {preview && (
             <div>
-              <p className="mb-2 text-xs text-muted-foreground">Timezone: {preview.timezone}</p>
               {preview.slots.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No slots for this date and party size.</p>
               ) : (

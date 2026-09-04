@@ -4,7 +4,6 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { RestaurantBookingsSection } from "./restaurant-bookings";
 import { RestaurantAvailabilityAdmin } from "./restaurant-availability-admin";
-import { DEFAULT_RESTAURANT_BOOKING_SETTINGS } from "@/modules/restaurant-booking/types";
 import type {
   AdminRestaurantBlockedPeriod,
   AdminRestaurantBooking,
@@ -46,7 +45,6 @@ export function RestaurantBookingProduct({
         <RestaurantBookingsSection settings={settings} zones={zones} unzonedTables={unzonedTables} bookings={bookings} />
       ) : (
         <RestaurantAvailabilityAdmin
-          timezone={settings.timezone ?? DEFAULT_RESTAURANT_BOOKING_SETTINGS.timezone}
           servicePeriods={servicePeriods}
           blockedPeriods={blockedPeriods}
         />
