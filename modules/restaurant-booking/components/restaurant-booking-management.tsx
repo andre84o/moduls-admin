@@ -67,6 +67,7 @@ export function RestaurantBookingManagement({
 }) {
   const [booking, setBooking] = useState(initialBooking);
   const [selectedDate, setSelectedDate] = useState(() => dateKey(initialBooking.startAt, initialBooking.timezone));
+  const [selectedStartAt, setSelectedStartAt] = useState<string | null>(null);
   const [slots, setSlots] = useState<Slot[] | null>(null);
   const [feedback, setFeedback] = useState<{ kind: "success" | "error"; text: string } | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -78,6 +79,7 @@ export function RestaurantBookingManagement({
 
   function checkAvailability() {
     if (!selectedDate) return;
+    setSelectedStartAt(null);
     setFeedback(null);
     startTransition(async () => {
       const result = await getRestaurantBookingManagementAvailability({
@@ -96,10 +98,14 @@ export function RestaurantBookingManagement({
     });
   }
 
-  function reschedule(startAt: string) {
+  function reschedule() {
+    if (!selectedStartAt) return;
+    const selectedLabel = formatDateTime(selectedStartAt, booking.timezone);
+    if (!window.confirm(`Reschedule your booking to ${selectedLabel}?`)) return;
+
     setFeedback(null);
     startTransition(async () => {
-      const result = await rescheduleRestaurantBookingByToken({ token, startAt });
+      const result = await rescheduleRestaurantBookingByToken({ token, startAt: selectedStartAt });
       if (!result.ok) {
         setFeedback({ kind: "error", text: result.error });
         return;
@@ -110,6 +116,7 @@ export function RestaurantBookingManagement({
         endAt: result.endAt,
       }));
       setSelectedDate(dateKey(result.startAt, booking.timezone));
+      setSelectedStartAt(null);
       setSlots(null);
       setFeedback({ kind: "success", text: "Your booking has been rescheduled." });
     });
@@ -125,6 +132,7 @@ export function RestaurantBookingManagement({
         return;
       }
       setBooking((current) => ({ ...current, status: result.status, canManage: false }));
+      setSelectedStartAt(null);
       setSlots(null);
       setFeedback({ kind: "success", text: "Your booking has been cancelled." });
     });
@@ -174,7 +182,7 @@ export function RestaurantBookingManagement({
               <div>
                 <h2 className="font-medium">Choose a new time</h2>
                 <p className="text-sm text-muted-foreground">
-                  Select a date to see available times. Your table is reassigned automatically.
+                  Select a date and time, then confirm the change. Your table is reassigned automatically.
                 </p>
               </div>
               <div className="flex flex-col gap-2 sm:flex-row">
@@ -183,6 +191,7 @@ export function RestaurantBookingManagement({
                   value={selectedDate}
                   onChange={(event) => {
                     setSelectedDate(event.target.value);
+                    setSelectedStartAt(null);
                     setSlots(null);
                     setFeedback(null);
                   }}
@@ -193,18 +202,38 @@ export function RestaurantBookingManagement({
               </div>
 
               {slots && availableSlots.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  {availableSlots.map((slot) => (
-                    <Button
-                      key={slot.startAt}
-                      type="button"
-                      variant="outline"
-                      disabled={isPending}
-                      onClick={() => reschedule(slot.startAt)}
-                    >
-                      {formatTime(slot.startAt, booking.timezone)}
-                    </Button>
-                  ))}
+                <div className="space-y-3">
+                  <div className="flex flex-wrap gap-2">
+                    {availableSlots.map((slot) => {
+                      const selected = selectedStartAt === slot.startAt;
+                      return (
+                        <Button
+                          key={slot.startAt}
+                          type="button"
+                          variant={selected ? "default" : "outline"}
+                          disabled={isPending}
+                          aria-pressed={selected}
+                          onClick={() => {
+                            setSelectedStartAt(slot.startAt);
+                            setFeedback(null);
+                          }}
+                        >
+                          {formatTime(slot.startAt, booking.timezone)}
+                        </Button>
+                      );
+                    })}
+                  </div>
+
+                  {selectedStartAt && (
+                    <div className="flex flex-col gap-2 rounded-md border p-3 sm:flex-row sm:items-center sm:justify-between">
+                      <p className="text-sm">
+                        Selected: <strong>{formatDateTime(selectedStartAt, booking.timezone)}</strong>
+                      </p>
+                      <Button type="button" disabled={isPending} onClick={reschedule}>
+                        {isPending ? "Rescheduling…" : "Reschedule booking"}
+                      </Button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
