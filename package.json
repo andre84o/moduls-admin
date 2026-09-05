@@ -16,6 +16,7 @@
     "storage:ensure": "tsx scripts/ensure-storage-buckets.ts",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:restaurant-concurrency": "vitest run tests/restaurant-booking-concurrency.integration.test.ts",
     "test:tenant-isolation": "tsx scripts/test-media-tenant-isolation.ts",
     "stripe:verify-booking": "tsx scripts/stripe-verify-booking.ts"
   },
