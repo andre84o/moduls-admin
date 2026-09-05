@@ -148,18 +148,21 @@ export function RestaurantBookingsSection({
   function runAction(
     action: () => Promise<{ error?: string } | void>,
     success: string,
+    onError?: () => void,
   ) {
     setFeedback(null);
     startTransition(async () => {
       try {
         const result = await action();
         if (result && "error" in result && result.error) {
+          onError?.();
           setFeedback({ kind: "error", text: result.error });
           return;
         }
         setFeedback({ kind: "success", text: success });
         router.refresh();
       } catch {
+        onError?.();
         setFeedback({ kind: "error", text: "Something went wrong. Please try again." });
       }
     });
@@ -640,6 +643,11 @@ export function RestaurantBookingsSection({
                                         tableIds: selected,
                                       }),
                                     "Table assignment saved.",
+                                    () =>
+                                      setSelectedTables((current) => ({
+                                        ...current,
+                                        [booking.id]: booking.tables.map((table) => table.id),
+                                      })),
                                   )
                                 }
                               >
