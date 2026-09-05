@@ -18,11 +18,16 @@ const MANAGED_MODULES: ProjectType[] = [
   "RESTAURANT",
 ];
 
+type RestaurantBookingTimezone =
+  | "Europe/Stockholm"
+  | "Europe/Madrid"
+  | "Asia/Tokyo";
+
 export type BusinessModules = {
   id: string;
   name: string;
   slug: string;
-  restaurantBookingTimezone: "Europe/Stockholm" | "Europe/Madrid";
+  restaurantBookingTimezone: RestaurantBookingTimezone;
   modules: {
     WEBSITE: boolean;
     RENTAL: boolean;
@@ -37,6 +42,13 @@ export type BusinessModules = {
     RESTAURANT_BOOKING: boolean;
   };
 };
+
+function normalizeRestaurantBookingTimezone(
+  value: string | undefined,
+): RestaurantBookingTimezone {
+  if (value === "Europe/Madrid" || value === "Asia/Tokyo") return value;
+  return "Europe/Stockholm";
+}
 
 export async function getAllBusinessesWithModules(): Promise<BusinessModules[]> {
   const user = await requireSuperAdmin();
@@ -103,8 +115,7 @@ export async function getAllBusinessesWithModules(): Promise<BusinessModules[]> 
       id: b.id,
       name: b.name,
       slug: b.slug,
-      restaurantBookingTimezone:
-        storedTimezone === "Europe/Madrid" ? "Europe/Madrid" : "Europe/Stockholm",
+      restaurantBookingTimezone: normalizeRestaurantBookingTimezone(storedTimezone),
       modules: {
         WEBSITE: active("WEBSITE"),
         RENTAL: active("RENTAL"),

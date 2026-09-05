@@ -181,6 +181,7 @@ export default async function SuperModulesPage() {
                     <form action={setRestaurantBookingTimezone} className="flex flex-col gap-2 sm:flex-row">
                       <input type="hidden" name="businessId" value={b.id} />
                       <select
+                        key={b.restaurantBookingTimezone}
                         name="timezone"
                         defaultValue={b.restaurantBookingTimezone}
                         aria-label={`Restaurant timezone for ${b.name}`}
@@ -188,6 +189,7 @@ export default async function SuperModulesPage() {
                       >
                         <option value="Europe/Stockholm">Stockholm</option>
                         <option value="Europe/Madrid">Madrid</option>
+                        <option value="Asia/Tokyo">Tokyo</option>
                       </select>
                       <Button type="submit" size="sm" variant="outline">
                         Save timezone
