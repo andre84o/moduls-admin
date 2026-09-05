@@ -3,6 +3,7 @@ import { getAllBusinessesWithModules } from "@/lib/super-admin";
 import {
   setModuleEnabled,
   setBusinessFeatureAccess,
+  setRestaurantBookingTimezone,
 } from "@/lib/super-admin-actions";
 import {
   GOOGLE_REVIEWS_FEATURE_KEY,
@@ -171,6 +172,32 @@ export default async function SuperModulesPage() {
                     </Button>
                   </form>
                 </div>
+
+                {b.addOns.RESTAURANT_BOOKING && (
+                  <div className="mt-4 max-w-md rounded-lg border p-3">
+                    <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      Restaurant timezone
+                    </p>
+                    <form action={setRestaurantBookingTimezone} className="flex flex-col gap-2 sm:flex-row">
+                      <input type="hidden" name="businessId" value={b.id} />
+                      <select
+                        name="timezone"
+                        defaultValue={b.restaurantBookingTimezone}
+                        aria-label={`Restaurant timezone for ${b.name}`}
+                        className="min-w-0 flex-1 rounded-md border bg-background px-3 py-2 text-sm"
+                      >
+                        <option value="Europe/Stockholm">Stockholm</option>
+                        <option value="Europe/Madrid">Madrid</option>
+                      </select>
+                      <Button type="submit" size="sm" variant="outline">
+                        Save timezone
+                      </Button>
+                    </form>
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      Used for restaurant booking times and daylight saving time.
+                    </p>
+                  </div>
+                )}
 
                 {!b.modules.RENTAL && (
                   <p className="mt-2 text-xs text-muted-foreground">

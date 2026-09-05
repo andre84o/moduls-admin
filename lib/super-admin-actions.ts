@@ -25,6 +25,11 @@ const TOGGLEABLE = new Set<ProjectType>([
   "RESTAURANT",
 ]);
 
+const RESTAURANT_BOOKING_TIMEZONES = new Set<string>([
+  "Europe/Stockholm",
+  "Europe/Madrid",
+]);
+
 async function ensureModuleActive(businessId: string, type: ProjectType) {
   const prisma = getPrisma();
   const res = await prisma.project.updateMany({
@@ -171,6 +176,46 @@ export async function setBusinessFeatureAccess(input: {
       }
     }
   }
+
+  revalidatePath("/admin/super/modules");
+  revalidatePath("/admin");
+}
+
+/** Set the restaurant-local booking timezone for one business. SUPER_ADMIN only. */
+export async function setRestaurantBookingTimezone(formData: FormData) {
+  const user = await requireSuperAdmin();
+
+  const businessId = String(formData.get("businessId") ?? "").trim();
+  const timezone = String(formData.get("timezone") ?? "").trim();
+  if (!businessId || !RESTAURANT_BOOKING_TIMEZONES.has(timezone)) return;
+  if (isDemoMode()) return;
+
+  const prisma = getPrisma();
+  const access = await prisma.businessFeatureAccess.findUnique({
+    where: {
+      businessId_key: {
+        businessId,
+        key: RESTAURANT_BOOKING_FEATURE_KEY,
+      },
+    },
+    select: { enabled: true },
+  });
+  if (!access?.enabled) return;
+
+  await prisma.restaurantBookingSettings.upsert({
+    where: { businessId },
+    create: { businessId, timezone },
+    update: { timezone },
+  });
+
+  await writeAuditLog({
+    businessId,
+    userId: user.id,
+    action: "restaurant_booking.timezone_updated",
+    entityType: "RestaurantBookingSettings",
+    entityId: null,
+    metadata: { timezone },
+  });
 
   revalidatePath("/admin/super/modules");
   revalidatePath("/admin");

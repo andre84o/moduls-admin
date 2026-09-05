@@ -22,6 +22,7 @@ export type BusinessModules = {
   id: string;
   name: string;
   slug: string;
+  restaurantBookingTimezone: "Europe/Stockholm" | "Europe/Madrid";
   modules: {
     WEBSITE: boolean;
     RENTAL: boolean;
@@ -46,6 +47,7 @@ export async function getAllBusinessesWithModules(): Promise<BusinessModules[]> 
         id: DEMO_BUSINESS_ID,
         name: "Demo Estates",
         slug: "demo",
+        restaurantBookingTimezone: "Europe/Stockholm",
         modules: { WEBSITE: false, RENTAL: true, BOOKING: true, CRM: false, RESTAURANT: false },
         addOns: { GOOGLE_REVIEWS: false, CATERING: false, RENTAL_BOOKING: true, RESTAURANT_BOOKING: false },
       },
@@ -53,13 +55,15 @@ export async function getAllBusinessesWithModules(): Promise<BusinessModules[]> 
         id: "demo-business-2",
         name: "Acme Services",
         slug: "acme",
+        restaurantBookingTimezone: "Europe/Stockholm",
         modules: { WEBSITE: true, RENTAL: false, BOOKING: true, CRM: true, RESTAURANT: true },
         addOns: { GOOGLE_REVIEWS: true, CATERING: false, RENTAL_BOOKING: false, RESTAURANT_BOOKING: true },
       },
     ];
   }
 
-  const businesses = await getPrisma().business.findMany({
+  const prisma = getPrisma();
+  const businesses = await prisma.business.findMany({
     orderBy: { name: "asc" },
     include: {
       projects: { where: { type: { in: MANAGED_MODULES } } },
@@ -78,16 +82,29 @@ export async function getAllBusinessesWithModules(): Promise<BusinessModules[]> 
     },
   });
 
+  const bookingSettings = businesses.length
+    ? await prisma.restaurantBookingSettings.findMany({
+        where: { businessId: { in: businesses.map((business) => business.id) } },
+        select: { businessId: true, timezone: true },
+      })
+    : [];
+  const timezoneByBusiness = new Map(
+    bookingSettings.map((settings) => [settings.businessId, settings.timezone]),
+  );
+
   return businesses.map((b) => {
     const active = (t: ProjectType) =>
       b.projects.some((p) => p.type === t && p.status === "ACTIVE");
     const feature = (key: string) =>
       b.featureAccess.some((f) => f.key === key && f.enabled);
+    const storedTimezone = timezoneByBusiness.get(b.id);
 
     return {
       id: b.id,
       name: b.name,
       slug: b.slug,
+      restaurantBookingTimezone:
+        storedTimezone === "Europe/Madrid" ? "Europe/Madrid" : "Europe/Stockholm",
       modules: {
         WEBSITE: active("WEBSITE"),
         RENTAL: active("RENTAL"),

@@ -62,12 +62,15 @@ const statusBadge: Record<
   REFUNDED: { label: "Refunded", variant: "outline" },
 };
 
-function localDayKey(value: string): string {
-  const date = new Date(value);
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
+function localDayKey(value: string, timeZone: string): string {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date(value));
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${values.year}-${values.month}-${values.day}`;
 }
 
 function fmtDateTime(value: string, timeZone: string): string {
@@ -106,15 +109,16 @@ export function RestaurantBookingsSection({
   const [isPending, startTransition] = useTransition();
   const [todayKey, setTodayKey] = useState<string | null>(null);
   const [nowIso, setNowIso] = useState<string | null>(null);
+  const restaurantTimezone = settings.timezone ?? "Europe/Stockholm";
   const [selectedTables, setSelectedTables] = useState<Record<string, string[]>>(
     () => Object.fromEntries(bookings.map((booking) => [booking.id, booking.tables.map((table) => table.id)])),
   );
 
   useEffect(() => {
     const now = new Date();
-    setTodayKey(localDayKey(now.toISOString()));
+    setTodayKey(localDayKey(now.toISOString(), restaurantTimezone));
     setNowIso(now.toISOString());
-  }, []);
+  }, [restaurantTimezone]);
 
   useEffect(() => {
     setSelectedTables(
@@ -135,7 +139,7 @@ export function RestaurantBookingsSection({
   );
   const activeBookings = bookings.filter((booking) => ACTIVE_STATUSES.has(booking.status));
   const todayBookings = todayKey
-    ? activeBookings.filter((booking) => localDayKey(booking.startAt) === todayKey)
+    ? activeBookings.filter((booking) => localDayKey(booking.startAt, restaurantTimezone) === todayKey)
     : [];
   const todayCovers = todayBookings.reduce((sum, booking) => sum + booking.partySize, 0);
   const unassigned = activeBookings.filter((booking) => booking.tables.length === 0).length;
