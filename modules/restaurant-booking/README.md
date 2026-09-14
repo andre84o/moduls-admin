@@ -2,7 +2,7 @@
 
 This is the source of truth for Restaurant Booking in `moduls-admin`.
 
-> Last verified against `feat/restaurant-booking-floor-plan` on 2026-09-14.
+> Last verified against `main` on 2026-09-14.
 
 ## Product boundary
 
@@ -44,6 +44,8 @@ Restaurant-specific Prisma models live in `prisma/restaurant-booking.prisma`.
 Per-business booking settings including timezone, slot interval, default duration, turnaround, lead time, booking horizon, maximum party size, confirmation mode and table-combination setting.
 
 Default timezone: `Europe/Stockholm`.
+
+Super Admin currently exposes `Europe/Stockholm` and `Europe/Madrid` as customer-selectable timezones. Internal timezone helpers remain IANA-aware.
 
 ### `RestaurantServicePeriod`
 
@@ -268,9 +270,9 @@ It resolves only the Demo-projekt tenant. The concurrency integration test also 
 - configuration conflict guards
 - public error propagation
 
-## Floor-plan verification before release
+## Verified floor-plan behavior
 
-After the additive migration is applied, verify on Demo-projekt only:
+Verified on Demo-projekt:
 
 - Restaurant Booking ON shows `Floor plan` in customer Admin;
 - Restaurant Booking OFF hides it;
@@ -278,8 +280,6 @@ After the additive migration is applied, verify on Demo-projekt only:
 - moving/removing a layout item does not change RestaurantTable inventory;
 - Live floor reflects an existing booking at the selected restaurant-local time;
 - another business cannot read or mutate Demo-projekt layouts.
-
-Tokyo is currently retained as a temporary Super Admin timezone test option until timezone testing is fully finished.
 
 ## Rules for future implementation
 

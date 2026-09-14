@@ -189,7 +189,6 @@ export default async function SuperModulesPage() {
                       >
                         <option value="Europe/Stockholm">Stockholm</option>
                         <option value="Europe/Madrid">Madrid</option>
-                        <option value="Asia/Tokyo">Tokyo</option>
                       </select>
                       <Button type="submit" size="sm" variant="outline">
                         Save timezone

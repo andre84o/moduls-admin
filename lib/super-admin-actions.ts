@@ -28,7 +28,6 @@ const TOGGLEABLE = new Set<ProjectType>([
 const RESTAURANT_BOOKING_TIMEZONES = new Set<string>([
   "Europe/Stockholm",
   "Europe/Madrid",
-  "Asia/Tokyo",
 ]);
 
 async function ensureModuleActive(businessId: string, type: ProjectType) {

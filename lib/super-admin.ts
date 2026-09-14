@@ -20,8 +20,7 @@ const MANAGED_MODULES: ProjectType[] = [
 
 type RestaurantBookingTimezone =
   | "Europe/Stockholm"
-  | "Europe/Madrid"
-  | "Asia/Tokyo";
+  | "Europe/Madrid";
 
 export type BusinessModules = {
   id: string;
@@ -46,7 +45,7 @@ export type BusinessModules = {
 function normalizeRestaurantBookingTimezone(
   value: string | undefined,
 ): RestaurantBookingTimezone {
-  if (value === "Europe/Madrid" || value === "Asia/Tokyo") return value;
+  if (value === "Europe/Madrid") return value;
   return "Europe/Stockholm";
 }
 
