@@ -96,6 +96,25 @@ export async function getUnzonedRestaurantTables() {
   });
 }
 
+export async function getRestaurantTableLayouts() {
+  const access = await requireRestaurantBooking();
+  if (access.isDemo) return [];
+
+  return getPrisma().restaurantTableLayout.findMany({
+    where: { businessId: access.businessId },
+    orderBy: { createdAt: "asc" },
+    select: {
+      tableId: true,
+      x: true,
+      y: true,
+      width: true,
+      height: true,
+      shape: true,
+      rotation: true,
+    },
+  });
+}
+
 export async function getRestaurantBookings() {
   const access = await requireRestaurantBooking();
   if (access.isDemo) return [];

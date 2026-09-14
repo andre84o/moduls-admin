@@ -83,6 +83,20 @@ export type AdminRestaurantZone = {
   tables: AdminRestaurantTable[];
 };
 
+export type RestaurantTableShapeValue = "RECTANGLE" | "ROUND";
+
+export type RestaurantTableLayoutInput = {
+  tableId: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  shape: RestaurantTableShapeValue;
+  rotation: number;
+};
+
+export type AdminRestaurantTableLayout = RestaurantTableLayoutInput;
+
 export type AdminRestaurantBookingStatus =
   | "PENDING"
   | "PAYMENT_PENDING"
