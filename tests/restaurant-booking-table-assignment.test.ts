@@ -83,6 +83,35 @@ describe("Restaurant Booking table allocator", () => {
     ).toEqual(["a4a", "a4b"]);
   });
 
+  it("rejects a combination when the party is below the combined minimum seats", () => {
+    expect(
+      chooseRestaurantTables({
+        tables: [
+          { id: "a4", minSeats: 4, maxSeats: 4, combinationGroup: "A" },
+          { id: "b4", minSeats: 4, maxSeats: 4, combinationGroup: "A" },
+        ],
+        occupied: new Set(),
+        partySize: 5,
+        allowCombinations: true,
+      }),
+    ).toBeNull();
+  });
+
+  it("keeps a valid combination when equal max capacity has a lower minimum", () => {
+    expect(
+      chooseRestaurantTables({
+        tables: [
+          { id: "high-a", minSeats: 4, maxSeats: 4, combinationGroup: "A" },
+          { id: "high-b", minSeats: 4, maxSeats: 4, combinationGroup: "A" },
+          { id: "low", minSeats: 1, maxSeats: 4, combinationGroup: "A" },
+        ],
+        occupied: new Set(),
+        partySize: 6,
+        allowCombinations: true,
+      }),
+    ).toEqual(["high-a", "low"]);
+  });
+
   it("does not combine ungrouped tables", () => {
     expect(
       chooseRestaurantTables({
