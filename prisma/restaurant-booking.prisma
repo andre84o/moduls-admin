@@ -77,14 +77,38 @@ model RestaurantTable {
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
-  zone         RestaurantZone? @relation(fields: [zoneId], references: [id], onDelete: SetNull)
+  zone         RestaurantZone?       @relation(fields: [zoneId], references: [id], onDelete: SetNull)
   bookingLinks BookingTable[]
+  floorLayout  RestaurantTableLayout?
 
+  // Tenant-owned floor-layout rows reference a table by businessId + id so the
+  // database cannot attach another business's layout to this table.
+  @@unique([businessId, id])
   @@unique([businessId, name])
   @@index([businessId])
   @@index([businessId, zoneId])
   @@index([businessId, combinationGroup])
   @@map("restaurant_tables")
+}
+
+model RestaurantTableLayout {
+  id         String               @id @default(cuid())
+  businessId String
+  tableId    String
+  x          Int
+  y          Int
+  width      Int                  @default(140)
+  height     Int                  @default(90)
+  shape      RestaurantTableShape @default(RECTANGLE)
+  rotation   Int                  @default(0)
+  createdAt  DateTime             @default(now())
+  updatedAt  DateTime             @updatedAt
+
+  table RestaurantTable @relation(fields: [businessId, tableId], references: [businessId, id], onDelete: Cascade)
+
+  @@unique([businessId, tableId])
+  @@index([businessId])
+  @@map("restaurant_table_layouts")
 }
 
 model RestaurantBookingDetail {
@@ -141,4 +165,9 @@ model BookingTable {
 enum RestaurantConfirmationMode {
   AUTO_CONFIRM
   REQUEST
+}
+
+enum RestaurantTableShape {
+  RECTANGLE
+  ROUND
 }

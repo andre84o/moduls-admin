@@ -14,6 +14,7 @@ import {
   getRestaurantBookingSettings,
   getRestaurantZonesWithTables,
   getUnzonedRestaurantTables,
+  getRestaurantTableLayouts,
   getRestaurantBookings,
   getRestaurantServicePeriods,
   getRestaurantBlockedPeriods,
@@ -26,6 +27,7 @@ import {
   type AdminRestaurantBooking,
   type AdminRestaurantServicePeriod,
   type AdminRestaurantTable,
+  type AdminRestaurantTableLayout,
   type AdminRestaurantZone,
 } from "@/modules/restaurant-booking/types";
 import { isGoogleReviewsConfigured } from "@/lib/config";
@@ -85,15 +87,25 @@ export default async function AdminPage({
   let restaurantBookingSettings = DEFAULT_RESTAURANT_BOOKING_SETTINGS;
   let restaurantZones: AdminRestaurantZone[] = [];
   let unzonedRestaurantTables: AdminRestaurantTable[] = [];
+  let restaurantTableLayouts: AdminRestaurantTableLayout[] = [];
   let restaurantBookings: AdminRestaurantBooking[] = [];
   let restaurantServicePeriods: AdminRestaurantServicePeriod[] = [];
   let restaurantBlockedPeriods: AdminRestaurantBlockedPeriod[] = [];
 
   if (restaurantBookingEnabled) {
-    const [settings, zones, unzoned, restaurantRows, servicePeriods, blockedPeriods] = await Promise.all([
+    const [
+      settings,
+      zones,
+      unzoned,
+      layouts,
+      restaurantRows,
+      servicePeriods,
+      blockedPeriods,
+    ] = await Promise.all([
       getRestaurantBookingSettings(),
       getRestaurantZonesWithTables(),
       getUnzonedRestaurantTables(),
+      getRestaurantTableLayouts(),
       getRestaurantBookings(),
       getRestaurantServicePeriods(),
       getRestaurantBlockedPeriods(),
@@ -105,6 +117,7 @@ export default async function AdminPage({
       tables: zone.tables.map((table) => ({ ...table, zoneId: zone.id })),
     }));
     unzonedRestaurantTables = unzoned.map((table) => ({ ...table, zoneId: null }));
+    restaurantTableLayouts = layouts;
     restaurantBookings = restaurantRows.map((booking) => ({
       ...booking,
       startAt: booking.startAt.toISOString(),
@@ -141,6 +154,7 @@ export default async function AdminPage({
       restaurantBookingSettings={restaurantBookingSettings}
       restaurantZones={restaurantZones}
       unzonedRestaurantTables={unzonedRestaurantTables}
+      restaurantTableLayouts={restaurantTableLayouts}
       restaurantBookings={restaurantBookings}
       restaurantServicePeriods={restaurantServicePeriods}
       restaurantBlockedPeriods={restaurantBlockedPeriods}

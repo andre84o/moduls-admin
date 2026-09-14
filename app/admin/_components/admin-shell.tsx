@@ -23,6 +23,7 @@ import type {
   AdminRestaurantBooking,
   AdminRestaurantServicePeriod,
   AdminRestaurantTable,
+  AdminRestaurantTableLayout,
   AdminRestaurantZone,
   RestaurantBookingSettingsInput,
 } from "@/modules/restaurant-booking/types";
@@ -33,6 +34,7 @@ import { CustomersSection } from "./sections/customers";
 import { WebsiteSection } from "./sections/website";
 import { GoogleReviewsSettings } from "./sections/google-reviews";
 import { RestaurantSection } from "./sections/restaurant";
+import { RestaurantFloorPlanSection } from "@/modules/restaurant-booking/components/restaurant-floor-plan";
 
 export function AdminShell({
   properties,
@@ -49,6 +51,7 @@ export function AdminShell({
   restaurantBookingSettings,
   restaurantZones,
   unzonedRestaurantTables,
+  restaurantTableLayouts,
   restaurantBookings,
   restaurantServicePeriods,
   restaurantBlockedPeriods,
@@ -71,6 +74,7 @@ export function AdminShell({
   restaurantBookingSettings: RestaurantBookingSettingsInput;
   restaurantZones: AdminRestaurantZone[];
   unzonedRestaurantTables: AdminRestaurantTable[];
+  restaurantTableLayouts: AdminRestaurantTableLayout[];
   restaurantBookings: AdminRestaurantBooking[];
   restaurantServicePeriods: AdminRestaurantServicePeriod[];
   restaurantBlockedPeriods: AdminRestaurantBlockedPeriod[];
@@ -110,8 +114,9 @@ export function AdminShell({
 
   const navigationModules = enabledModules.filter((module) => module !== "BOOKING");
   if (rentalBookingEnabled || restaurantBookingEnabled) navigationModules.push("BOOKING");
+  const enabledFeatures = restaurantBookingEnabled ? ["RESTAURANT_BOOKING"] : [];
 
-  const visibleSections = visibleAdminSections(navigationModules).filter(
+  const visibleSections = visibleAdminSections(navigationModules, enabledFeatures).filter(
     (s) => s.id !== "googleReviews" || googleReviewsAddOnEnabled,
   );
 
@@ -122,6 +127,11 @@ export function AdminShell({
     : "website";
 
   const isSuperAdmin = businesses.some((b) => b.role === "SUPER_ADMIN");
+  const activeBusinessRole = businesses.find((b) => b.id === activeBusinessId)?.role ?? null;
+  const canEditRestaurantFloorPlan =
+    activeBusinessRole === "OWNER" ||
+    activeBusinessRole === "ADMIN" ||
+    activeBusinessRole === "SUPER_ADMIN";
 
   const genericPages = websitePages
     .map((p) => ({ ...p, sections: p.sections.filter((s) => !isRestaurantSectionType(s.type)) }))
@@ -170,6 +180,7 @@ export function AdminShell({
             businesses={businesses}
             activeBusinessId={activeBusinessId}
             enabledModules={navigationModules}
+            enabledFeatures={enabledFeatures}
             googleReviewsAddOnEnabled={googleReviewsAddOnEnabled}
             isSuperAdmin={isSuperAdmin}
             activeSection={effectiveActive}
@@ -178,7 +189,12 @@ export function AdminShell({
         </aside>
 
         <main className="flex-1 overflow-y-auto">
-          <div className="mx-auto max-w-5xl px-8 py-10">
+          <div
+            className={cn(
+              "mx-auto px-8 py-10",
+              effectiveActive === "floorPlan" ? "max-w-7xl" : "max-w-5xl",
+            )}
+          >
             {effectiveActive === "properties" && (
               <PropertiesSection properties={properties} />
             )}
@@ -194,6 +210,16 @@ export function AdminShell({
                 restaurantBookings={restaurantBookings}
                 restaurantServicePeriods={restaurantServicePeriods}
                 restaurantBlockedPeriods={restaurantBlockedPeriods}
+              />
+            )}
+            {effectiveActive === "floorPlan" && restaurantBookingEnabled && (
+              <RestaurantFloorPlanSection
+                zones={restaurantZones}
+                unzonedTables={unzonedRestaurantTables}
+                layouts={restaurantTableLayouts}
+                bookings={restaurantBookings}
+                timezone={restaurantBookingSettings.timezone ?? "Europe/Stockholm"}
+                canEdit={canEditRestaurantFloorPlan}
               />
             )}
             {effectiveActive === "customers" && (

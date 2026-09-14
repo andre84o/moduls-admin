@@ -5,6 +5,7 @@ import {
   Globe,
   Star,
   UtensilsCrossed,
+  MapPinned,
 } from "lucide-react";
 
 /**
@@ -16,19 +17,25 @@ import {
  */
 
 export const ADMIN_SECTIONS = [
-  { id: "properties", label: "Properties", icon: Home, module: "RENTAL" },
-  { id: "bookings", label: "Bookings", icon: CalendarDays, module: "BOOKING" },
-  { id: "customers", label: "CRM", icon: Users, module: "CRM" },
-  { id: "website", label: "Website", icon: Globe, module: "WEBSITE" },
-  { id: "googleReviews", label: "Google Reviews", icon: Star, module: "WEBSITE" },
-  { id: "restaurant", label: "Restaurant", icon: UtensilsCrossed, module: "RESTAURANT" },
+  { id: "properties", label: "Properties", icon: Home, module: "RENTAL", feature: null },
+  { id: "bookings", label: "Bookings", icon: CalendarDays, module: "BOOKING", feature: null },
+  { id: "floorPlan", label: "Floor plan", icon: MapPinned, module: null, feature: "RESTAURANT_BOOKING" },
+  { id: "customers", label: "CRM", icon: Users, module: "CRM", feature: null },
+  { id: "website", label: "Website", icon: Globe, module: "WEBSITE", feature: null },
+  { id: "googleReviews", label: "Google Reviews", icon: Star, module: "WEBSITE", feature: null },
+  { id: "restaurant", label: "Restaurant", icon: UtensilsCrossed, module: "RESTAURANT", feature: null },
 ] as const;
 
 export type AdminSectionId = (typeof ADMIN_SECTIONS)[number]["id"];
 
-/** Sections visible for the given set of enabled modules (Overview is core). */
-export function visibleAdminSections(enabledModules: string[]) {
+/** Sections visible for the given enabled modules and paid feature entitlements. */
+export function visibleAdminSections(
+  enabledModules: string[],
+  enabledFeatures: string[] = [],
+) {
   return ADMIN_SECTIONS.filter(
-    (s) => !s.module || enabledModules.includes(s.module),
+    (section) =>
+      (!section.module || enabledModules.includes(section.module)) &&
+      (!section.feature || enabledFeatures.includes(section.feature)),
   );
 }
