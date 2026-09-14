@@ -154,7 +154,7 @@ export function RestaurantFloorPlanSection({
 
   const initialZone = zoneOptions[0]?.key ?? "";
   const [zoneKey, setZoneKey] = useState(initialZone);
-  const [mode, setMode] = useState<"EDIT" | "LIVE">(canEdit ? "EDIT" : "LIVE");
+  const [mode, setMode] = useState<"EDIT" | "LIVE">("LIVE");
   const [items, setItems] = useState<RestaurantTableLayoutInput[]>(() => layouts.map((item) => ({ ...item })));
   const [savedSnapshot, setSavedSnapshot] = useState(() => serializeLayouts(layouts));
   const [selectedTableId, setSelectedTableId] = useState<string | null>(null);
@@ -330,6 +330,8 @@ export function RestaurantFloorPlanSection({
         return;
       }
       setSavedSnapshot(serializeLayouts(items));
+      setSelectedTableId(null);
+      setMode("LIVE");
       setMessage("Floor plan saved.");
     });
   }
