@@ -5,6 +5,7 @@ import { Prisma } from "@/app/generated/prisma/client";
 import { getPrisma } from "@/lib/prisma";
 import { writeAuditLog } from "@/lib/audit";
 import { requireRestaurantBooking } from "./guards";
+import { restaurantTableSelectionFitsParty } from "./table-assignment";
 import {
   DEFAULT_RESTAURANT_BOOKING_SETTINGS,
   type RestaurantBookingSettingsInput,
@@ -239,13 +240,12 @@ export async function setRestaurantBookingTables(input: { bookingId: string; tab
       });
       if (tables.length !== tableIds.length) throw new Error("TABLE_NOT_FOUND");
 
-      if (tables.length === 1) {
-        const table = tables[0];
-        if (detail.partySize < table.minSeats || detail.partySize > table.maxSeats) throw new Error("CAPACITY_MISMATCH");
-      } else {
+      if (tables.length > 1) {
         const groups = new Set(tables.map((table) => table.combinationGroup).filter(Boolean));
         if (groups.size !== 1 || tables.some((table) => !table.combinationGroup)) throw new Error("INVALID_COMBINATION");
-        if (tables.reduce((sum, table) => sum + table.maxSeats, 0) < detail.partySize) throw new Error("CAPACITY_MISMATCH");
+      }
+      if (!restaurantTableSelectionFitsParty(tables, detail.partySize)) {
+        throw new Error("CAPACITY_MISMATCH");
       }
 
       const links = await tx.bookingTable.findMany({ where: { businessId: access.businessId, tableId: { in: tableIds }, restaurantBookingId: { not: detail.id } }, select: { restaurantBooking: { select: { bookingId: true, businessId: true } } } });

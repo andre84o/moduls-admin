@@ -7,6 +7,16 @@ export type AssignableRestaurantTable = {
   combinationGroup: string | null;
 };
 
+export function restaurantTableSelectionFitsParty(
+  tables: Pick<AssignableRestaurantTable, "minSeats" | "maxSeats">[],
+  partySize: number,
+): boolean {
+  if (!Number.isInteger(partySize) || partySize < 1 || tables.length === 0) return false;
+  const minimumSeats = tables.reduce((sum, table) => sum + table.minSeats, 0);
+  const maximumSeats = tables.reduce((sum, table) => sum + table.maxSeats, 0);
+  return partySize >= minimumSeats && partySize <= maximumSeats;
+}
+
 /** Pick the smallest fitting single table, otherwise the smallest valid combination. */
 export function chooseRestaurantTables(input: {
   tables: AssignableRestaurantTable[];
@@ -16,7 +26,7 @@ export function chooseRestaurantTables(input: {
 }): string[] | null {
   const free = input.tables.filter((table) => !input.occupied.has(table.id));
   const singles = free
-    .filter((table) => input.partySize >= table.minSeats && input.partySize <= table.maxSeats)
+    .filter((table) => restaurantTableSelectionFitsParty([table], input.partySize))
     .sort((a, b) => a.maxSeats - b.maxSeats || a.minSeats - b.minSeats || a.id.localeCompare(b.id));
   if (singles[0]) return [singles[0].id];
   if (!input.allowCombinations) return null;
@@ -29,28 +39,38 @@ export function chooseRestaurantTables(input: {
     groups.set(table.combinationGroup, list);
   }
 
-  let best: { ids: string[]; capacity: number } | null = null;
+  let best: { ids: string[]; maximumSeats: number } | null = null;
   for (const group of groups.values()) {
     if (group.length < 2) continue;
-    const dp = new Map<number, string[]>();
-    dp.set(0, []);
+
+    // Keep minimum and maximum capacity in the DP key. Keeping only max capacity
+    // can discard a valid combination when two combinations have the same max
+    // seats but different summed minimum-seat requirements.
+    const dp = new Map<string, { ids: string[]; minimumSeats: number; maximumSeats: number }>();
+    dp.set("0:0", { ids: [], minimumSeats: 0, maximumSeats: 0 });
     for (const table of group) {
-      const snapshot = [...dp.entries()];
-      for (const [capacity, ids] of snapshot) {
-        const nextCapacity = capacity + table.maxSeats;
-        const nextIds = [...ids, table.id];
-        const existing = dp.get(nextCapacity);
-        if (!existing || nextIds.length < existing.length) dp.set(nextCapacity, nextIds);
+      const snapshot = [...dp.values()];
+      for (const candidate of snapshot) {
+        const next = {
+          ids: [...candidate.ids, table.id],
+          minimumSeats: candidate.minimumSeats + table.minSeats,
+          maximumSeats: candidate.maximumSeats + table.maxSeats,
+        };
+        const key = `${next.minimumSeats}:${next.maximumSeats}`;
+        const existing = dp.get(key);
+        if (!existing || next.ids.length < existing.ids.length) dp.set(key, next);
       }
     }
-    for (const [capacity, ids] of dp.entries()) {
-      if (ids.length < 2 || capacity < input.partySize) continue;
+
+    for (const candidate of dp.values()) {
+      if (candidate.ids.length < 2) continue;
+      if (input.partySize < candidate.minimumSeats || input.partySize > candidate.maximumSeats) continue;
       if (
         !best ||
-        capacity < best.capacity ||
-        (capacity === best.capacity && ids.length < best.ids.length)
+        candidate.maximumSeats < best.maximumSeats ||
+        (candidate.maximumSeats === best.maximumSeats && candidate.ids.length < best.ids.length)
       ) {
-        best = { ids, capacity };
+        best = { ids: candidate.ids, maximumSeats: candidate.maximumSeats };
       }
     }
   }
