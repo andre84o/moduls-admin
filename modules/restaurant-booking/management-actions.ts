@@ -10,7 +10,7 @@ import {
   allocateRestaurantBookingSlot,
   restaurantSlotErrorMessage,
 } from "./booking-slot";
-import { isValidRestaurantBookingManagementToken } from "./management-access";
+import { resolveRestaurantBookingManagementScope } from "./management-access";
 import { notifyRestaurantBookingEvent } from "./notifications";
 import { DEFAULT_RESTAURANT_BOOKING_SETTINGS } from "./types";
 import { safeTimezone } from "./time";
@@ -43,20 +43,31 @@ function managementError(error: unknown, fallback: string) {
 }
 
 export async function getRestaurantBookingManagement(token: string) {
-  if (!isValidRestaurantBookingManagementToken(token)) {
+  const scope = await resolveRestaurantBookingManagementScope(token);
+  if (!scope) {
     return { ok: false as const, error: "This booking link is invalid." };
   }
 
   const prisma = getPrisma();
-  const detail = await prisma.restaurantBookingDetail.findUnique({
-    where: { managementToken: token },
-    select: { businessId: true, bookingId: true, partySize: true },
+  const access = await prisma.restaurantBookingManagementToken.findUnique({
+    where: {
+      businessId_tokenHash: {
+        businessId: scope.businessId,
+        tokenHash: scope.tokenHash,
+      },
+    },
+    select: {
+      restaurantBooking: {
+        select: { bookingId: true, partySize: true },
+      },
+    },
   });
-  if (!detail) return { ok: false as const, error: "This booking link is invalid." };
+  if (!access) return { ok: false as const, error: "This booking link is invalid." };
 
-  const [booking, business, settings] = await Promise.all([
+  const detail = access.restaurantBooking;
+  const [booking, settings] = await Promise.all([
     prisma.booking.findFirst({
-      where: { id: detail.bookingId, businessId: detail.businessId },
+      where: { id: detail.bookingId, businessId: scope.businessId },
       select: {
         guestName: true,
         startAt: true,
@@ -64,17 +75,13 @@ export async function getRestaurantBookingManagement(token: string) {
         status: true,
       },
     }),
-    prisma.business.findUnique({
-      where: { id: detail.businessId },
-      select: { name: true },
-    }),
     prisma.restaurantBookingSettings.findUnique({
-      where: { businessId: detail.businessId },
+      where: { businessId: scope.businessId },
       select: { timezone: true },
     }),
   ]);
 
-  if (!booking || !business) {
+  if (!booking) {
     return { ok: false as const, error: "This booking link is invalid." };
   }
   if (isManagementLinkExpired(booking.endAt)) {
@@ -84,7 +91,7 @@ export async function getRestaurantBookingManagement(token: string) {
   return {
     ok: true as const,
     booking: {
-      businessName: business.name,
+      businessName: scope.businessName,
       guestName: booking.guestName,
       partySize: detail.partySize,
       startAt: booking.startAt.toISOString(),
@@ -102,19 +109,30 @@ export async function getRestaurantBookingManagementAvailability(input: {
   token: string;
   date: string;
 }) {
-  if (!isValidRestaurantBookingManagementToken(input.token)) {
+  const scope = await resolveRestaurantBookingManagementScope(input.token);
+  if (!scope) {
     return { ok: false as const, error: "This booking link is invalid." };
   }
 
   const prisma = getPrisma();
-  const detail = await prisma.restaurantBookingDetail.findUnique({
-    where: { managementToken: input.token },
-    select: { businessId: true, bookingId: true, partySize: true },
+  const access = await prisma.restaurantBookingManagementToken.findUnique({
+    where: {
+      businessId_tokenHash: {
+        businessId: scope.businessId,
+        tokenHash: scope.tokenHash,
+      },
+    },
+    select: {
+      restaurantBooking: {
+        select: { bookingId: true, partySize: true },
+      },
+    },
   });
-  if (!detail) return { ok: false as const, error: "This booking link is invalid." };
+  if (!access) return { ok: false as const, error: "This booking link is invalid." };
 
+  const detail = access.restaurantBooking;
   const booking = await prisma.booking.findFirst({
-    where: { id: detail.bookingId, businessId: detail.businessId },
+    where: { id: detail.bookingId, businessId: scope.businessId },
     select: { status: true, endAt: true },
   });
   if (!booking) {
@@ -128,7 +146,7 @@ export async function getRestaurantBookingManagementAvailability(input: {
   }
 
   const availability = await getRestaurantAvailabilityForBusiness({
-    businessId: detail.businessId,
+    businessId: scope.businessId,
     date: input.date,
     partySize: detail.partySize,
     excludeBookingId: detail.bookingId,
@@ -137,7 +155,8 @@ export async function getRestaurantBookingManagementAvailability(input: {
 }
 
 export async function cancelRestaurantBookingByToken(token: string) {
-  if (!isValidRestaurantBookingManagementToken(token)) {
+  const scope = await resolveRestaurantBookingManagementScope(token);
+  if (!scope) {
     return { ok: false as const, error: "This booking link is invalid." };
   }
 
@@ -145,28 +164,46 @@ export async function cancelRestaurantBookingByToken(token: string) {
   try {
     const result = await prisma.$transaction(
       async (tx) => {
-        const detail = await tx.restaurantBookingDetail.findUnique({
-          where: { managementToken: token },
-          select: { businessId: true, bookingId: true },
+        const access = await tx.restaurantBookingManagementToken.findUnique({
+          where: {
+            businessId_tokenHash: {
+              businessId: scope.businessId,
+              tokenHash: scope.tokenHash,
+            },
+          },
+          select: {
+            restaurantBooking: {
+              select: { bookingId: true },
+            },
+          },
         });
-        if (!detail) throw new Error("BOOKING_NOT_FOUND");
+        if (!access) throw new Error("BOOKING_NOT_FOUND");
 
+        const detail = access.restaurantBooking;
         const booking = await tx.booking.findFirst({
-          where: { id: detail.bookingId, businessId: detail.businessId },
+          where: { id: detail.bookingId, businessId: scope.businessId },
           select: { status: true, endAt: true },
         });
         if (!booking) throw new Error("BOOKING_NOT_FOUND");
         if (isManagementLinkExpired(booking.endAt)) throw new Error("BOOKING_EXPIRED");
         if (booking.status === "CANCELLED") {
-          return { ...detail, changed: false };
+          return {
+            businessId: scope.businessId,
+            bookingId: detail.bookingId,
+            changed: false,
+          };
         }
         if (!isActiveStatus(booking.status)) throw new Error("BOOKING_INACTIVE");
 
         await tx.booking.updateMany({
-          where: { id: detail.bookingId, businessId: detail.businessId },
+          where: { id: detail.bookingId, businessId: scope.businessId },
           data: { status: "CANCELLED" },
         });
-        return { ...detail, changed: true };
+        return {
+          businessId: scope.businessId,
+          bookingId: detail.bookingId,
+          changed: true,
+        };
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );
@@ -201,7 +238,8 @@ export async function rescheduleRestaurantBookingByToken(input: {
   token: string;
   startAt: string;
 }) {
-  if (!isValidRestaurantBookingManagementToken(input.token)) {
+  const scope = await resolveRestaurantBookingManagementScope(input.token);
+  if (!scope) {
     return { ok: false as const, error: "This booking link is invalid." };
   }
   const requestedStart = new Date(input.startAt);
@@ -214,14 +252,24 @@ export async function rescheduleRestaurantBookingByToken(input: {
     try {
       const result = await prisma.$transaction(
         async (tx) => {
-          const detail = await tx.restaurantBookingDetail.findUnique({
-            where: { managementToken: input.token },
-            select: { id: true, businessId: true, bookingId: true, partySize: true },
+          const access = await tx.restaurantBookingManagementToken.findUnique({
+            where: {
+              businessId_tokenHash: {
+                businessId: scope.businessId,
+                tokenHash: scope.tokenHash,
+              },
+            },
+            select: {
+              restaurantBooking: {
+                select: { id: true, bookingId: true, partySize: true },
+              },
+            },
           });
-          if (!detail) throw new Error("BOOKING_NOT_FOUND");
+          if (!access) throw new Error("BOOKING_NOT_FOUND");
 
+          const detail = access.restaurantBooking;
           const booking = await tx.booking.findFirst({
-            where: { id: detail.bookingId, businessId: detail.businessId },
+            where: { id: detail.bookingId, businessId: scope.businessId },
             select: { status: true, endAt: true },
           });
           if (!booking) throw new Error("BOOKING_NOT_FOUND");
@@ -229,7 +277,7 @@ export async function rescheduleRestaurantBookingByToken(input: {
           if (!isActiveStatus(booking.status)) throw new Error("BOOKING_INACTIVE");
 
           const allocation = await allocateRestaurantBookingSlot(tx, {
-            businessId: detail.businessId,
+            businessId: scope.businessId,
             partySize: detail.partySize,
             startAt: requestedStart,
             excludeBookingId: detail.bookingId,
@@ -237,25 +285,25 @@ export async function rescheduleRestaurantBookingByToken(input: {
           });
 
           await tx.booking.updateMany({
-            where: { id: detail.bookingId, businessId: detail.businessId },
+            where: { id: detail.bookingId, businessId: scope.businessId },
             data: { startAt: requestedStart, endAt: allocation.endAt },
           });
           await tx.bookingTable.deleteMany({
             where: {
-              businessId: detail.businessId,
+              businessId: scope.businessId,
               restaurantBookingId: detail.id,
             },
           });
           await tx.bookingTable.createMany({
             data: allocation.tableIds.map((tableId) => ({
-              businessId: detail.businessId,
+              businessId: scope.businessId,
               restaurantBookingId: detail.id,
               tableId,
             })),
           });
 
           return {
-            businessId: detail.businessId,
+            businessId: scope.businessId,
             bookingId: detail.bookingId,
             startAt: requestedStart.toISOString(),
             endAt: allocation.endAt.toISOString(),
