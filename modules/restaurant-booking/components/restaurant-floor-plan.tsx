@@ -5,6 +5,7 @@ import type { DragEvent } from "react";
 import { Circle, Eye, Pencil, Save, Square, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { DatePicker } from "@/components/DatePicker";
 import { saveRestaurantFloorPlan } from "../floor-plan-actions";
 import {
   clampRestaurantFloorPlanPosition,
@@ -407,11 +408,11 @@ export function RestaurantFloorPlanSection({
           <>
             <label className="grid gap-1 text-sm">
               <span className="font-medium">Date</span>
-              <input
-                type="date"
-                className="h-9 rounded-md border bg-background px-3 text-sm"
+              <DatePicker
                 value={liveDate}
-                onChange={(event) => setLiveDate(event.target.value)}
+                onChange={setLiveDate}
+                placeholder="Pick date"
+                className="mt-0"
               />
             </label>
             <label className="grid gap-1 text-sm">

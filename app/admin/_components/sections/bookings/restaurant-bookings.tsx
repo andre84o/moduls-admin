@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { DateTimePicker } from "@/components/DateTimePicker";
 import {
   createRestaurantTable,
   createRestaurantZone,
@@ -441,7 +442,7 @@ export function RestaurantBookingsSection({
                 </div>
                 <div>
                   <Label>Date & time</Label>
-                  <Input name="startAt" type="datetime-local" required className="mt-1.5" />
+                  <DateTimePicker name="startAt" required />
                 </div>
                 <div>
                   <Label>Notes</Label>
@@ -618,7 +619,7 @@ export function RestaurantBookingsSection({
                               >
                                 <div className="w-full sm:max-w-xs">
                                   <Label>New date & time</Label>
-                                  <Input name="rescheduleStartAt" type="datetime-local" required className="mt-1.5" />
+                                  <DateTimePicker name="rescheduleStartAt" required />
                                 </div>
                                 <Button type="submit" size="sm" disabled={isPending}>
                                   {isPending ? "Checking…" : "Reschedule"}

@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { DateTimePicker } from "@/components/DateTimePicker";
+import { DatePicker } from "@/components/DatePicker";
 import {
   createRestaurantBlockedPeriodSafely,
   createRestaurantServicePeriodSafely,
@@ -147,11 +149,11 @@ export function RestaurantAvailabilityAdmin({
           >
             <div>
               <Label>From</Label>
-              <Input name="startAt" type="datetime-local" required className="mt-1.5" />
+              <DateTimePicker name="startAt" required />
             </div>
             <div>
               <Label>To</Label>
-              <Input name="endAt" type="datetime-local" required className="mt-1.5" />
+              <DateTimePicker name="endAt" required />
             </div>
             <div>
               <Label>Reason</Label>
@@ -198,7 +200,7 @@ export function RestaurantAvailabilityAdmin({
           >
             <div>
               <Label>Date</Label>
-              <Input name="date" type="date" required className="mt-1.5" />
+              <DatePicker name="date" required />
             </div>
             <div>
               <Label>Party size</Label>
