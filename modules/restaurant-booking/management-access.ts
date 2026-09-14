@@ -1,18 +1,14 @@
 import "server-only";
 
-import { randomBytes } from "node:crypto";
 import { Prisma } from "@/app/generated/prisma/client";
 import { getPrisma } from "@/lib/prisma";
-
-const MANAGEMENT_TOKEN_PATTERN = /^[A-Za-z0-9_-]{43}$/;
-
-export function createRestaurantBookingManagementToken() {
-  return randomBytes(32).toString("base64url");
-}
-
-export function isValidRestaurantBookingManagementToken(value: string) {
-  return MANAGEMENT_TOKEN_PATTERN.test(value);
-}
+import { isRestaurantBookingEnabledForBusiness } from "./guards";
+import {
+  createRestaurantBookingManagementToken,
+  hashRestaurantBookingManagementToken,
+  isValidRestaurantBookingManagementToken,
+  parseRestaurantBookingManagementToken,
+} from "./management-token";
 
 function normalizeHttpOrigin(value: string | null | undefined): string | null {
   const trimmed = value?.trim();
@@ -53,40 +49,65 @@ export function restaurantBookingManagementUrl(
   return baseUrl ? `${baseUrl}/booking/manage/${encodeURIComponent(token)}` : null;
 }
 
+/**
+ * Resolve only the tenant root from the public slug embedded in the capability
+ * token. Restaurant-owned data must still be queried with the returned
+ * businessId; token hash alone is never used to read module data.
+ */
+export async function resolveRestaurantBookingManagementScope(token: string) {
+  const parsed = parseRestaurantBookingManagementToken(token);
+  if (!parsed) return null;
+
+  const prisma = getPrisma();
+  // Public tenant resolution is explicitly allowed by the SaaS public-route
+  // rule. No restaurant-owned data is read until businessId is known.
+  const business = await prisma.business.findUnique({
+    where: { slug: parsed.businessSlug },
+    select: { id: true, name: true },
+  });
+  if (!business) return null;
+  if (!(await isRestaurantBookingEnabledForBusiness(business.id))) return null;
+
+  return {
+    businessId: business.id,
+    businessName: business.name,
+    tokenHash: hashRestaurantBookingManagementToken(token),
+  };
+}
+
+/**
+ * Mint a fresh opaque management capability for a booking. Only its SHA-256
+ * hash is persisted. Every write is tenant-scoped by businessId.
+ */
 export async function ensureRestaurantBookingManagementToken(input: {
   businessId: string;
   bookingId: string;
 }) {
   const prisma = getPrisma();
-  const detail = await prisma.restaurantBookingDetail.findFirst({
-    where: { businessId: input.businessId, bookingId: input.bookingId },
-    select: { id: true, managementToken: true },
-  });
-  if (!detail) return null;
-  if (detail.managementToken && isValidRestaurantBookingManagementToken(detail.managementToken)) {
-    return detail.managementToken;
-  }
+  const [detail, business] = await Promise.all([
+    prisma.restaurantBookingDetail.findFirst({
+      where: { businessId: input.businessId, bookingId: input.bookingId },
+      select: { id: true },
+    }),
+    prisma.business.findFirst({
+      where: { id: input.businessId },
+      select: { slug: true },
+    }),
+  ]);
+  if (!detail || !business) return null;
 
   for (let attempt = 0; attempt < 3; attempt += 1) {
-    const token = createRestaurantBookingManagementToken();
+    const token = createRestaurantBookingManagementToken(business.slug);
+    const tokenHash = hashRestaurantBookingManagementToken(token);
     try {
-      const updated = await prisma.restaurantBookingDetail.updateMany({
-        where: {
-          id: detail.id,
+      await prisma.restaurantBookingManagementToken.create({
+        data: {
           businessId: input.businessId,
-          managementToken: null,
+          restaurantBookingId: detail.id,
+          tokenHash,
         },
-        data: { managementToken: token },
       });
-      if (updated.count === 1) return token;
-
-      const current = await prisma.restaurantBookingDetail.findFirst({
-        where: { id: detail.id, businessId: input.businessId },
-        select: { managementToken: true },
-      });
-      if (current?.managementToken && isValidRestaurantBookingManagementToken(current.managementToken)) {
-        return current.managementToken;
-      }
+      return token;
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
         continue;

@@ -88,20 +88,37 @@ model RestaurantTable {
 }
 
 model RestaurantBookingDetail {
-  id              String   @id @default(cuid())
-  businessId      String
-  bookingId       String   @unique
-  guestPhone      String?
-  partySize       Int
-  managementToken String?  @unique
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id         String   @id @default(cuid())
+  businessId String
+  bookingId  String   @unique
+  guestPhone String?
+  partySize  Int
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
-  tables BookingTable[]
+  tables           BookingTable[]
+  managementTokens RestaurantBookingManagementToken[]
 
+  // Composite uniqueness lets tenant-owned child tables enforce businessId at
+  // the foreign-key level instead of attaching to a detail by id alone.
+  @@unique([businessId, id])
   @@index([businessId])
   @@index([businessId, bookingId])
   @@map("restaurant_booking_details")
+}
+
+model RestaurantBookingManagementToken {
+  id                  String   @id @default(cuid())
+  businessId          String
+  restaurantBookingId String
+  tokenHash           String
+  createdAt           DateTime @default(now())
+
+  restaurantBooking RestaurantBookingDetail @relation(fields: [businessId, restaurantBookingId], references: [businessId, id], onDelete: Cascade)
+
+  @@unique([businessId, tokenHash])
+  @@index([businessId, restaurantBookingId])
+  @@map("restaurant_booking_management_tokens")
 }
 
 model BookingTable {
