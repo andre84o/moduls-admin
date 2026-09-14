@@ -1,7 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { gsap } from "gsap";
+import { Calendar, Users, AlertCircle, Table2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -52,16 +54,33 @@ const REACTIVATABLE_STATUSES = new Set<AdminRestaurantBookingStatus>([
 
 const statusBadge: Record<
   AdminRestaurantBookingStatus,
-  { label: string; variant: "default" | "secondary" | "destructive" | "outline" }
+  { label: string; variant: "default" | "secondary" | "destructive" | "outline"; border: string }
 > = {
-  PENDING: { label: "Pending", variant: "secondary" },
-  PAYMENT_PENDING: { label: "Payment pending", variant: "secondary" },
-  CONFIRMED: { label: "Confirmed", variant: "default" },
-  DECLINED: { label: "Declined", variant: "destructive" },
-  CANCELLED: { label: "Cancelled", variant: "outline" },
-  EXPIRED: { label: "Expired", variant: "outline" },
-  REFUNDED: { label: "Refunded", variant: "outline" },
+  PENDING:         { label: "Pending",         variant: "secondary",   border: "border-l-amber-400" },
+  PAYMENT_PENDING: { label: "Payment pending", variant: "secondary",   border: "border-l-amber-400" },
+  CONFIRMED:       { label: "Confirmed",       variant: "default",     border: "border-l-emerald-500" },
+  DECLINED:        { label: "Declined",        variant: "destructive", border: "border-l-red-500" },
+  CANCELLED:       { label: "Cancelled",       variant: "outline",     border: "border-l-border" },
+  EXPIRED:         { label: "Expired",         variant: "outline",     border: "border-l-border" },
+  REFUNDED:        { label: "Refunded",        variant: "outline",     border: "border-l-border" },
 };
+
+function AnimatedNumber({ target, className }: { target: number; className?: string }) {
+  const ref = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    if (!ref.current) return;
+    const obj = { value: 0 };
+    gsap.to(obj, {
+      value: target,
+      duration: 1,
+      ease: "power2.out",
+      onUpdate() {
+        if (ref.current) ref.current.textContent = String(Math.round(obj.value));
+      },
+    });
+  }, [target]);
+  return <span ref={ref} className={className}>0</span>;
+}
 
 function localDayKey(value: string, timeZone: string): string {
   const parts = new Intl.DateTimeFormat("en-CA", {
@@ -359,52 +378,112 @@ export function RestaurantBookingsSection({
         <div className="space-y-6">
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <Card>
-              <CardHeader className="pb-2"><CardTitle className="text-sm">Today</CardTitle></CardHeader>
-              <CardContent><p className="text-3xl font-semibold">{todayBookings.length}</p><p className="text-xs text-muted-foreground">bookings</p></CardContent>
+              <CardContent className="pt-5">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground">Today</p>
+                    <AnimatedNumber target={todayBookings.length} className="mt-1 block text-3xl font-semibold tabular-nums" />
+                    <p className="mt-0.5 text-xs text-muted-foreground">bookings</p>
+                  </div>
+                  <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-900/40">
+                    <Calendar className="size-4 text-sky-600 dark:text-sky-400" />
+                  </div>
+                </div>
+              </CardContent>
             </Card>
             <Card>
-              <CardHeader className="pb-2"><CardTitle className="text-sm">Covers today</CardTitle></CardHeader>
-              <CardContent><p className="text-3xl font-semibold">{todayCovers}</p><p className="text-xs text-muted-foreground">guests</p></CardContent>
+              <CardContent className="pt-5">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground">Covers today</p>
+                    <AnimatedNumber target={todayCovers} className="mt-1 block text-3xl font-semibold tabular-nums" />
+                    <p className="mt-0.5 text-xs text-muted-foreground">guests</p>
+                  </div>
+                  <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-violet-100 dark:bg-violet-900/40">
+                    <Users className="size-4 text-violet-600 dark:text-violet-400" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card className={unassigned > 0 ? "border-amber-400/60" : ""}>
+              <CardContent className="pt-5">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground">Unassigned</p>
+                    <AnimatedNumber
+                      target={unassigned}
+                      className={`mt-1 block text-3xl font-semibold tabular-nums${unassigned > 0 ? " text-amber-600 dark:text-amber-400" : ""}`}
+                    />
+                    <p className="mt-0.5 text-xs text-muted-foreground">need a table</p>
+                  </div>
+                  <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-amber-100 dark:bg-amber-900/40">
+                    <AlertCircle className="size-4 text-amber-600 dark:text-amber-400" />
+                  </div>
+                </div>
+              </CardContent>
             </Card>
             <Card>
-              <CardHeader className="pb-2"><CardTitle className="text-sm">Unassigned</CardTitle></CardHeader>
-              <CardContent><p className="text-3xl font-semibold">{unassigned}</p><p className="text-xs text-muted-foreground">need a table</p></CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="pb-2"><CardTitle className="text-sm">Active tables</CardTitle></CardHeader>
-              <CardContent><p className="text-3xl font-semibold">{activeTables.length}</p><p className="text-xs text-muted-foreground">bookable inventory</p></CardContent>
+              <CardContent className="pt-5">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground">Active tables</p>
+                    <AnimatedNumber target={activeTables.length} className="mt-1 block text-3xl font-semibold tabular-nums" />
+                    <p className="mt-0.5 text-xs text-muted-foreground">bookable inventory</p>
+                  </div>
+                  <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-emerald-100 dark:bg-emerald-900/40">
+                    <Table2 className="size-4 text-emerald-600 dark:text-emerald-400" />
+                  </div>
+                </div>
+              </CardContent>
             </Card>
           </div>
 
           <Card>
             <CardHeader><CardTitle>Upcoming bookings</CardTitle></CardHeader>
-            <CardContent>
+            <CardContent className="space-y-5">
               {upcoming.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No upcoming restaurant bookings.</p>
-              ) : (
-                <div className="divide-y">
-                  {upcoming.map((booking) => (
-                    <div key={booking.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
-                      <div>
-                        <p className="font-medium">{booking.guestName}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {fmtDateTime(booking.startAt, settings.timezone ?? "Europe/Stockholm")} · {booking.partySize} guests
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm text-muted-foreground">
-                          {booking.tables.length > 0
-                            ? booking.tables.map((table) => table.name).join(", ")
-                            : "No table"}
-                        </span>
-                        <Badge variant={statusBadge[booking.status].variant}>
-                          {statusBadge[booking.status].label}
-                        </Badge>
-                      </div>
+              ) : (() => {
+                const tz = settings.timezone ?? "Europe/Stockholm";
+                const todayKey2 = localDayKey(new Date().toISOString(), tz);
+                const tomorrowKey = localDayKey(new Date(Date.now() + 86400000).toISOString(), tz);
+                const groups: { title: string; items: typeof upcoming }[] = [
+                  { title: "Today",    items: upcoming.filter((b) => localDayKey(b.startAt, tz) === todayKey2) },
+                  { title: "Tomorrow", items: upcoming.filter((b) => localDayKey(b.startAt, tz) === tomorrowKey) },
+                  { title: "Later",    items: upcoming.filter((b) => localDayKey(b.startAt, tz) > tomorrowKey) },
+                ];
+                return groups.filter((g) => g.items.length > 0).map((group) => (
+                  <div key={group.title}>
+                    <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">{group.title}</p>
+                    <div className="divide-y rounded-lg border">
+                      {group.items.map((booking) => {
+                        const badge = statusBadge[booking.status];
+                        return (
+                          <div
+                            key={booking.id}
+                            className={`flex flex-wrap items-center justify-between gap-3 border-l-4 px-4 py-3 first:rounded-tl-lg first:rounded-tr-lg last:rounded-bl-lg last:rounded-br-lg ${badge.border}`}
+                          >
+                            <div className="min-w-0">
+                              <p className="font-medium">{booking.guestName}</p>
+                              <p className="text-sm text-muted-foreground">
+                                {fmtDateTime(booking.startAt, tz)} · {booking.partySize} guests
+                              </p>
+                            </div>
+                            <div className="flex shrink-0 items-center gap-2">
+                              <span className="text-sm text-muted-foreground">
+                                {booking.tables.length > 0
+                                  ? booking.tables.map((table) => table.name).join(", ")
+                                  : "No table"}
+                              </span>
+                              <Badge variant={badge.variant}>{badge.label}</Badge>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
-                  ))}
-                </div>
-              )}
+                  </div>
+                ));
+              })()}
             </CardContent>
           </Card>
         </div>
