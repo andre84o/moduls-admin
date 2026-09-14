@@ -65,6 +65,14 @@ function formatDate(value: string) {
   });
 }
 
+function publicErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof Error) {
+    const message = error.message.trim();
+    if (message && message !== "Request failed.") return message;
+  }
+  return fallback;
+}
+
 export function RestaurantBookingWidget({
   title = "Reserve a table",
   subtitle = "Choose your party size, date and an available time.",
@@ -100,9 +108,9 @@ export function RestaurantBookingWidget({
     try {
       const next = await loadAvailability({ date: nextDate, partySize: nextPartySize });
       setAvailability(next);
-    } catch {
+    } catch (error) {
       setAvailability(null);
-      setError("We couldn't load available times. Please try again.");
+      setError(publicErrorMessage(error, "We couldn't load available times. Please try again."));
     } finally {
       setLoadingAvailability(false);
     }
@@ -123,8 +131,8 @@ export function RestaurantBookingWidget({
       });
       setResult(response);
       setStep("done");
-    } catch {
-      setError("That time is no longer available. Please choose another time.");
+    } catch (error) {
+      setError(publicErrorMessage(error, "We couldn't complete your booking. Please try again."));
       setStep("search");
       await refreshAvailability(date, partySize, { preserveError: true });
     } finally {
