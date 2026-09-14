@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { DateTimePicker } from "@/components/DateTimePicker";
 import { DatePicker } from "@/components/DatePicker";
+import { TimePicker } from "@/components/TimePicker";
 import {
   createRestaurantBlockedPeriodSafely,
   createRestaurantServicePeriodSafely,
@@ -105,11 +106,11 @@ export function RestaurantAvailabilityAdmin({
             </div>
             <div>
               <Label>From</Label>
-              <Input name="start" type="time" defaultValue="17:00" required className="mt-1.5" />
+              <TimePicker name="start" defaultValue="17:00" required />
             </div>
             <div>
               <Label>To</Label>
-              <Input name="end" type="time" defaultValue="22:00" required className="mt-1.5" />
+              <TimePicker name="end" defaultValue="22:00" required />
             </div>
             <Button type="submit" disabled={isPending}>Add</Button>
           </form>

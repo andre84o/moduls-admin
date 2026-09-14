@@ -6,6 +6,7 @@ import { Circle, Eye, Pencil, Save, Square, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { DatePicker } from "@/components/DatePicker";
+import { TimePicker } from "@/components/TimePicker";
 import { saveRestaurantFloorPlan } from "../floor-plan-actions";
 import {
   clampRestaurantFloorPlanPosition,
@@ -417,11 +418,10 @@ export function RestaurantFloorPlanSection({
             </label>
             <label className="grid gap-1 text-sm">
               <span className="font-medium">Time</span>
-              <input
-                type="time"
-                className="h-9 rounded-md border bg-background px-3 text-sm"
+              <TimePicker
                 value={liveTime}
-                onChange={(event) => setLiveTime(event.target.value)}
+                onChange={setLiveTime}
+                className="mt-0"
               />
             </label>
             <span className="pb-2 text-xs text-muted-foreground">{timezone}</span>
